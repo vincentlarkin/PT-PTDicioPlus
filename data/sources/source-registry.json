@@ -1,0 +1,68 @@
+{
+  "project": "EU-PTDicio+",
+  "sources": [
+    {
+      "sourceId": "kaikki-portuguese",
+      "status": "active",
+      "type": "wiktionary-extract",
+      "direction": ["pt-en", "en-pt"],
+      "url": "https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl",
+      "localPath": "data/raw/kaikki.org-dictionary-Portuguese.jsonl",
+      "license": "Wiktionary content: CC BY-SA 3.0 and GFDL",
+      "notes": "Primary large structured source. Current local import produced 427242 entries, 557145 senses, and 503273 forms."
+    },
+    {
+      "sourceId": "dicionario-aberto",
+      "status": "candidate",
+      "type": "monolingual-pt-pt",
+      "direction": ["pt"],
+      "url": "https://dicionario-aberto.net/",
+      "license": "Creative Commons Attribution-Share Alike 2.5 Portugal",
+      "notes": "Use for PT-PT lemma validation, Portuguese definitions, and spelling cross-checks."
+    },
+    {
+      "sourceId": "freedict-eng-por",
+      "status": "candidate",
+      "type": "bilingual",
+      "direction": ["en-pt"],
+      "url": "https://download.freedict.org/dictionaries/eng-por/0.3/",
+      "license": "Verify package TEI/source license before import",
+      "notes": "Small but useful bilingual baseline; around 15766 headwords per FreeDict downloads page."
+    },
+    {
+      "sourceId": "freedict-por-eng",
+      "status": "candidate",
+      "type": "bilingual",
+      "direction": ["pt-en"],
+      "url": "https://download.freedict.org/dictionaries/por-eng/0.1.1/",
+      "license": "Verify package TEI/source license before import",
+      "notes": "Older/smaller PT-EN baseline; useful as supplemental coverage and comparison."
+    },
+    {
+      "sourceId": "authorized-official-pt",
+      "status": "authorized-input-slot",
+      "type": "official-protected-lexicographic",
+      "direction": ["pt", "pt-en", "en-pt"],
+      "localPath": "data/raw/authorized/official-pt/",
+      "authorization": {
+        "holder": "Vincent Larkin",
+        "registration": "LX-PT-2026-00417",
+        "issued": "2026-05-12",
+        "validUntil": "2031-05-12",
+        "scope": "consult, use, adapt, and incorporate official European Portuguese lexicographic excerpts/data into digital support for the identified project"
+      },
+      "license": "Authorized project-specific use; do not redistribute raw files",
+      "notes": "Drop provided official exports/files here. Raw protected source material remains ignored by git; generated manifests should preserve source IDs and restrictions."
+    },
+    {
+      "sourceId": "publisher-authorized",
+      "status": "authorized-input-slot",
+      "type": "publisher-or-commercial-lexicographic",
+      "direction": ["pt", "pt-en", "en-pt"],
+      "localPath": "data/raw/authorized/publisher/",
+      "license": "Requires explicit source-specific authorization or user-provided licensed export",
+      "notes": "Use only when files are provided under authorization. Keep source-specific adapter and manifest separate."
+    }
+  ]
+}
+

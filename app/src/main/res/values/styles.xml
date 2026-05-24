@@ -1,0 +1,4 @@
+<resources>
+    <style name="Theme.EUPTDicio" parent="android:style/Theme.Material.Light.NoActionBar" />
+</resources>
+
