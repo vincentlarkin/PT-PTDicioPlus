@@ -22,6 +22,12 @@ $sources = @(
         url = 'https://download.freedict.org/dictionaries/por-eng/0.1.1/freedict-por-eng-0.1.1.dictd.tar.bz2'
         file = 'freedict-por-eng-0.1.1.dictd.tar.bz2'
         license = 'Verify package metadata before import'
+    },
+    @{
+        id = 'hf-eu-pt-web-frequency'
+        url = 'https://huggingface.co/datasets/diplomaticvegetation/portuguese/resolve/main/words-top.txt'
+        file = 'hf-eu-pt-words-top.txt'
+        license = 'CC0-1.0'
     }
 )
 
@@ -43,4 +49,3 @@ foreach ($source in $sources) {
     } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $manifest -Encoding UTF8
     Write-Host "Ready: $($source.id) -> $output"
 }
-

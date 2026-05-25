@@ -24,7 +24,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.OutlinedTextField
@@ -33,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,14 +48,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.euptdicio.core.InMemoryDictionary
 import com.euptdicio.core.LookupDirection
 import com.euptdicio.core.LookupResult
 import com.euptdicio.core.MatchType
-import com.euptdicio.core.SampleEntries
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -78,17 +87,52 @@ private fun EUPTDicioTheme(content: @Composable () -> Unit) {
 
 @Composable
 private fun DictionaryApp() {
-    val dictionary = remember { InMemoryDictionary(SampleEntries.europeanPortuguese) }
+    val context = LocalContext.current
+    val dictionary = remember { DictionaryRepository(context.applicationContext) }
     var directionName by rememberSaveable { mutableStateOf(LookupDirection.PortugueseToEnglish.name) }
     var portugueseQuery by rememberSaveable { mutableStateOf("") }
     var englishQuery by rememberSaveable { mutableStateOf("") }
+    var sortModeName by rememberSaveable { mutableStateOf(SortMode.Popularity.name) }
+    var results by remember { mutableStateOf<List<LookupResult>>(emptyList()) }
+    var lookupError by remember { mutableStateOf<String?>(null) }
+    var isSearching by remember { mutableStateOf(false) }
+    var debugStatus by remember { mutableStateOf<DictionaryDebugStatus?>(null) }
+    var debugRefreshKey by remember { mutableStateOf(0) }
     val direction = LookupDirection.valueOf(directionName)
+    val sortMode = SortMode.valueOf(sortModeName)
     val query = when (direction) {
         LookupDirection.PortugueseToEnglish -> portugueseQuery
         LookupDirection.EnglishToPortuguese -> englishQuery
     }
-    val results = remember(query, direction) {
-        dictionary.lookup(query = query, direction = direction)
+
+    LaunchedEffect(query, direction, sortMode) {
+        if (query.isBlank()) {
+            results = emptyList()
+            lookupError = null
+            isSearching = false
+        } else {
+            isSearching = true
+            lookupError = null
+            try {
+                val lookup = withContext(Dispatchers.IO) {
+                    dictionary.lookup(query = query, direction = direction, sortMode = sortMode)
+                }
+                results = lookup
+                isSearching = false
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                results = emptyList()
+                lookupError = error.message ?: error::class.java.simpleName
+                isSearching = false
+            }
+        }
+    }
+
+    LaunchedEffect(debugRefreshKey) {
+        debugStatus = withContext(Dispatchers.IO) {
+            dictionary.debugStatus()
+        }
     }
 
     Scaffold(
@@ -106,7 +150,10 @@ private fun DictionaryApp() {
                 .padding(padding)
                 .padding(horizontal = 18.dp, vertical = 16.dp),
         ) {
-            Header()
+            Header(
+                debugStatus = debugStatus,
+                onRefreshDebug = { debugRefreshKey += 1 },
+            )
             Spacer(Modifier.height(18.dp))
             SearchBox(
                 query = query,
@@ -119,7 +166,18 @@ private fun DictionaryApp() {
                 },
             )
             Spacer(Modifier.height(14.dp))
-            ResultSummary(query = query, direction = direction, results = results)
+            ResultSummary(
+                query = query,
+                direction = direction,
+                results = results,
+                error = lookupError,
+                isSearching = isSearching,
+            )
+            Spacer(Modifier.height(10.dp))
+            SortControls(
+                selected = sortMode,
+                onSelected = { sortModeName = it.name },
+            )
             Spacer(Modifier.height(10.dp))
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -143,8 +201,62 @@ private fun DictionaryApp() {
 }
 
 @Composable
-private fun Header() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun SortControls(
+    selected: SortMode,
+    onSelected: (SortMode) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SortButton(
+            label = "Commonality",
+            selected = selected == SortMode.Popularity,
+            onClick = { onSelected(SortMode.Popularity) },
+        )
+        SortButton(
+            label = "Alphabetical",
+            selected = selected == SortMode.Alphabetical,
+            onClick = { onSelected(SortMode.Alphabetical) },
+        )
+    }
+}
+
+@Composable
+private fun SortButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+            color = if (selected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+    }
+}
+
+@Composable
+private fun Header(
+    debugStatus: DictionaryDebugStatus?,
+    onRefreshDebug: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -159,7 +271,7 @@ private fun Header() {
             )
         }
         Spacer(Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "EU-PTDicio+",
                 style = MaterialTheme.typography.headlineSmall,
@@ -171,7 +283,117 @@ private fun Header() {
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
             )
         }
+        SettingsMenu(
+            debugStatus = debugStatus,
+            onRefreshDebug = onRefreshDebug,
+        )
     }
+}
+
+@Composable
+private fun SettingsMenu(
+    debugStatus: DictionaryDebugStatus?,
+    onRefreshDebug: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        IconButton(
+            onClick = {
+                expanded = true
+                onRefreshDebug()
+            },
+        ) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            DropdownMenuItem(
+                text = { Text("Debug checks") },
+                onClick = onRefreshDebug,
+            )
+            DebugStatusRow("DB available", debugStatus?.schemaOk == true)
+            DebugStatusRow("Asset bundled", debugStatus?.assetPresent == true)
+            DebugStatusRow("Local copy", debugStatus?.localPresent == true)
+            DebugStatusRow("Fallback search", debugStatus?.schemaOk == true)
+            DebugStatusRow("FTS boost", debugStatus?.ftsOk == true)
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Entries: ${debugStatus?.entryCount ?: "checking"}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                onClick = onRefreshDebug,
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Signals: ${debugStatus?.frequencySignalCount ?: "checking"}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                onClick = onRefreshDebug,
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Asset: ${debugStatus?.assetBytes?.toMb() ?: "?"} MB",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                onClick = onRefreshDebug,
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = "Local: ${debugStatus?.localBytes?.toMb() ?: "?"} MB",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                onClick = onRefreshDebug,
+            )
+            if (debugStatus != null && debugStatus.message != "OK") {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = debugStatus.message.take(80),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                        )
+                    },
+                    onClick = onRefreshDebug,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugStatusRow(label: String, ok: Boolean) {
+    DropdownMenuItem(
+        text = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .background(
+                            color = if (ok) Color(0xFF1D8F5A) else Color(0xFFD94C38),
+                            shape = CircleShape,
+                        ),
+                )
+                Spacer(Modifier.width(9.dp))
+                Text(label)
+            }
+        },
+        onClick = {},
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -200,12 +422,16 @@ private fun ResultSummary(
     query: String,
     direction: LookupDirection,
     results: List<LookupResult>,
+    error: String?,
+    isSearching: Boolean,
 ) {
     val emptyPrompt = when (direction) {
         LookupDirection.PortugueseToEnglish -> "Try falar, falávamos, cão, faze-lo, or pôr"
         LookupDirection.EnglishToPortuguese -> "Try dog, good, speak, make, or thank you"
     }
     val text = when {
+        error != null -> "Dictionary issue: ${error.take(90)}"
+        isSearching -> "Searching..."
         query.isBlank() -> emptyPrompt
         results.isEmpty() -> "No local result yet"
         results.size == 1 -> "1 result"
@@ -214,9 +440,15 @@ private fun ResultSummary(
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+        color = if (error == null) {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+        } else {
+            MaterialTheme.colorScheme.secondary
+        },
     )
 }
+
+private fun Long.toMb(): Long = this / (1024L * 1024L)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

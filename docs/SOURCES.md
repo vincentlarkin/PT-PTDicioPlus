@@ -11,6 +11,12 @@ Current imported source:
   - Imported counts: 427,242 entries; 557,145 senses; 503,273 forms
   - License: Wiktionary content under CC BY-SA 3.0 and GFDL
 
+- Hugging Face `diplomaticvegetation/portuguese` word frequency list
+  - URL: https://huggingface.co/datasets/diplomaticvegetation/portuguese/blob/main/words-top.txt
+  - Local raw file: `data/raw/hf-eu-pt-words-top.txt`
+  - License: CC0-1.0
+  - Use: entry commonality scoring from European Portuguese web frequency
+
 Authorized source slots:
 
 - Official European Portuguese sources: `data/raw/authorized/official-pt/`
@@ -24,4 +30,3 @@ Import rules:
 - Every entry/sense/form should keep a source ID.
 - Source priority must be explicit. Official PT-PT sources should outrank community sources for spelling and lemma validation; bilingual meaning quality can still come from multiple ranked sources.
 - Protected raw data must stay in ignored folders. The app database can include adapted/excerpted data only within the authorization scope.
-

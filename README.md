@@ -138,7 +138,7 @@ Data import:
 
 ```powershell
 .\tools\fetch-open-sources.ps1
-.\gradlew.bat :dictionary-importer:run --args="--input C:\path\to\EU-PTDicio+\data\raw\kaikki.org-dictionary-Portuguese.jsonl --output C:\path\to\EU-PTDicio+\data\build\euptdicio-kaikki.sqlite"
+.\gradlew.bat :dictionary-importer:run --args="--input C:\path\to\EU-PTDicio+\data\raw\kaikki.org-dictionary-Portuguese.jsonl --frequency C:\path\to\EU-PTDicio+\data\raw\hf-eu-pt-words-top.txt --output C:\path\to\EU-PTDicio+\data\build\euptdicio-kaikki.sqlite"
 ```
 
 See `docs/SOURCES.md` and `data/sources/source-registry.json` for source policy and authorized input slots.

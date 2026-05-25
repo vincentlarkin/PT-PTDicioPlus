@@ -22,6 +22,18 @@ android {
     }
 }
 
+tasks.register<Copy>("copyDictionaryDatabase") {
+    val builtDictionary = rootProject.layout.projectDirectory.file("data/build/euptdicio-kaikki.sqlite")
+    val dictionaryAssetDir = layout.projectDirectory.dir("src/main/assets/dictionary")
+    from(builtDictionary)
+    into(dictionaryAssetDir)
+    rename { "euptdicio.sqlite" }
+}
+
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn("copyDictionaryDatabase")
+}
+
 kotlin {
     jvmToolchain(17)
 }
@@ -33,11 +45,13 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
 
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

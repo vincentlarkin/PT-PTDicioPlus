@@ -41,6 +41,7 @@ desktop.ini
 # Dictionary source/build artifacts
 data/raw/
 data/build/
+app/src/main/assets/dictionary/*.sqlite
 !data/
 !data/sources/
 !data/sources/source-registry.json

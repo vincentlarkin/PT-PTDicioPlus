@@ -12,6 +12,16 @@
       "notes": "Primary large structured source. Current local import produced 427242 entries, 557145 senses, and 503273 forms."
     },
     {
+      "sourceId": "hf-eu-pt-web-frequency",
+      "status": "active",
+      "type": "frequency",
+      "direction": ["pt"],
+      "url": "https://huggingface.co/datasets/diplomaticvegetation/portuguese/blob/main/words-top.txt",
+      "localPath": "data/raw/hf-eu-pt-words-top.txt",
+      "license": "CC0-1.0",
+      "notes": "200,000 common European Portuguese web words. Used to populate commonality_score and frequency_rank."
+    },
+    {
       "sourceId": "dicionario-aberto",
       "status": "candidate",
       "type": "monolingual-pt-pt",
@@ -65,4 +75,3 @@
     }
   ]
 }
-

@@ -24,6 +24,7 @@ data class ImportConfig(
     val input: Path,
     val output: Path,
     val sourceUrl: String,
+    val frequency: Path?,
     val limit: Int?,
 ) {
     companion object {
@@ -42,6 +43,7 @@ data class ImportConfig(
                 input = input,
                 output = output,
                 sourceUrl = values["source-url"] ?: "https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl",
+                frequency = values["frequency"]?.let(Path::of),
                 limit = values["limit"]?.toInt(),
             )
         }
@@ -50,6 +52,7 @@ data class ImportConfig(
 
 class KaikkiImporter(private val config: ImportConfig) {
     private val mapper = ObjectMapper()
+    private val frequencySignals by lazy { loadFrequencySignals(config.frequency) }
 
     fun run() {
         require(config.input.exists()) { "Input does not exist: ${config.input.absolutePathString()}" }
@@ -92,7 +95,11 @@ class KaikkiImporter(private val config: ImportConfig) {
                     entry_id INTEGER PRIMARY KEY,
                     lemma TEXT NOT NULL,
                     pos TEXT NOT NULL,
-                    source_id TEXT NOT NULL
+                    source_id TEXT NOT NULL,
+                    commonality_score INTEGER NOT NULL DEFAULT 0,
+                    frequency_rank INTEGER,
+                    frequency INTEGER,
+                    frequency_source_id TEXT
                 )
                 """.trimIndent(),
             )
@@ -118,11 +125,11 @@ class KaikkiImporter(private val config: ImportConfig) {
             )
             statement.executeUpdate(
                 """
-                CREATE VIRTUAL TABLE search_fts USING fts5(
+                CREATE VIRTUAL TABLE search_fts USING fts4(
                     lemma,
                     meanings,
                     forms,
-                    tokenize = 'unicode61 remove_diacritics 2'
+                    tokenize=unicode61 "remove_diacritics=2"
                 )
                 """.trimIndent(),
             )
@@ -145,7 +152,17 @@ class KaikkiImporter(private val config: ImportConfig) {
 
     private fun importJsonl(connection: Connection) {
         val insertEntry = connection.prepareStatement(
-            "INSERT INTO entries(lemma, pos, source_id) VALUES (?, ?, ?)",
+            """
+            INSERT INTO entries(
+                lemma,
+                pos,
+                source_id,
+                commonality_score,
+                frequency_rank,
+                frequency,
+                frequency_source_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent(),
             arrayOf("entry_id"),
         )
         val insertSense = connection.prepareStatement(
@@ -172,6 +189,16 @@ class KaikkiImporter(private val config: ImportConfig) {
                 insertEntry.setString(1, record.lemma)
                 insertEntry.setString(2, record.pos)
                 insertEntry.setString(3, SOURCE_ID)
+                insertEntry.setInt(4, record.frequencySignal?.commonalityScore ?: 0)
+                if (record.frequencySignal == null) {
+                    insertEntry.setNull(5, java.sql.Types.INTEGER)
+                    insertEntry.setNull(6, java.sql.Types.INTEGER)
+                    insertEntry.setNull(7, java.sql.Types.VARCHAR)
+                } else {
+                    insertEntry.setInt(5, record.frequencySignal.rank)
+                    insertEntry.setInt(6, record.frequencySignal.frequency)
+                    insertEntry.setString(7, record.frequencySignal.sourceId)
+                }
                 insertEntry.executeUpdate()
 
                 val entryId = insertEntry.generatedKeys.use { keys ->
@@ -216,9 +243,9 @@ class KaikkiImporter(private val config: ImportConfig) {
     private fun optimize(connection: Connection) {
         connection.createStatement().use { statement ->
             statement.executeUpdate("CREATE INDEX idx_entries_lemma ON entries(lemma)")
+            statement.executeUpdate("CREATE INDEX idx_entries_commonality ON entries(commonality_score DESC)")
             statement.executeUpdate("CREATE INDEX idx_forms_form ON forms(form)")
             statement.executeUpdate("CREATE INDEX idx_senses_entry ON senses(entry_id)")
-            statement.executeUpdate("INSERT INTO search_fts(search_fts) VALUES('optimize')")
         }
         connection.commit()
     }
@@ -251,13 +278,66 @@ class KaikkiImporter(private val config: ImportConfig) {
                 }
             }
             .distinctBy { it.text }
+        val frequencySignal = bestFrequencySignal(lemma, forms)
 
         return DictionaryRecord(
             lemma = lemma,
             pos = pos,
             glosses = glosses,
             forms = forms,
+            frequencySignal = frequencySignal,
         )
+    }
+
+    private fun loadFrequencySignals(path: Path?): Map<String, FrequencySignal> {
+        if (path == null || !path.exists()) return emptyMap()
+
+        val signals = linkedMapOf<String, FrequencySignal>()
+        Files.newBufferedReader(path, StandardCharsets.UTF_8).useLines { lines ->
+            lines.forEachIndexed { index, line ->
+                val columns = line.split('\t')
+                if (columns.size >= 2) {
+                    val word = columns[0].trim().lowercase()
+                    val frequency = columns[1].trim().toIntOrNull()
+                    if (word.isNotBlank() && frequency != null && frequency > 0) {
+                        val rank = index + 1
+                        signals.putIfAbsent(
+                            word,
+                            FrequencySignal(
+                                rank = rank,
+                                frequency = frequency,
+                                commonalityScore = commonalityScore(rank),
+                                sourceId = FREQUENCY_SOURCE_ID,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+        println("Loaded ${signals.size} frequency signals from ${path.absolutePathString()}")
+        return signals
+    }
+
+    private fun bestFrequencySignal(lemma: String, forms: List<WordForm>): FrequencySignal? {
+        val candidates = sequenceOf(lemma)
+            .plus(forms.asSequence().map { it.text })
+            .map { it.lowercase() }
+        return candidates.mapNotNull { frequencySignals[it] }.minByOrNull { it.rank }
+    }
+
+    private fun commonalityScore(rank: Int): Int {
+        return when {
+            rank <= 100 -> 260
+            rank <= 500 -> 230
+            rank <= 1_000 -> 210
+            rank <= 2_500 -> 185
+            rank <= 5_000 -> 160
+            rank <= 10_000 -> 130
+            rank <= 25_000 -> 95
+            rank <= 50_000 -> 70
+            rank <= 100_000 -> 45
+            else -> 25
+        }
     }
 
     private fun openReader(path: Path): BufferedReader {
@@ -272,6 +352,7 @@ class KaikkiImporter(private val config: ImportConfig) {
         val pos: String,
         val glosses: List<String>,
         val forms: List<WordForm>,
+        val frequencySignal: FrequencySignal?,
     )
 
     private data class WordForm(
@@ -279,8 +360,16 @@ class KaikkiImporter(private val config: ImportConfig) {
         val tags: List<String>,
     )
 
+    private data class FrequencySignal(
+        val rank: Int,
+        val frequency: Int,
+        val commonalityScore: Int,
+        val sourceId: String,
+    )
+
     companion object {
         private const val BATCH_SIZE = 5_000
         private const val SOURCE_ID = "kaikki-portuguese"
+        private const val FREQUENCY_SOURCE_ID = "hf-eu-pt-web-frequency"
     }
 }
