@@ -360,6 +360,7 @@ class DictionaryRepository(private val context: Context) {
         return hits.mapNotNull { hit ->
             val base = entries[hit.entryId] ?: return@mapNotNull null
             LookupResult(
+                entryId = hit.entryId,
                 entry = base.copy(
                     meanings = meanings[hit.entryId].orEmpty().take(6),
                     forms = forms[hit.entryId].orEmpty().take(MAX_FORMS_PER_ENTRY),

@@ -29,6 +29,7 @@ enum class PartOfSpeech(val displayName: String) {
 }
 
 data class LookupResult(
+    val entryId: Long = 0L,
     val entry: DictionaryEntry,
     val matchedForm: String,
     val matchType: MatchType,

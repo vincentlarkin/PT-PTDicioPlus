@@ -38,20 +38,20 @@ class InMemoryDictionary(entries: List<DictionaryEntry>) {
         val matches = mutableMapOf<String, LookupResult>()
 
         lemmaIndex[normalized]?.let { entry ->
-            matches.putBest(entry.lemma, LookupResult(entry, entry.lemma, MatchType.ExactLemma, 1000))
+            matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = entry.lemma, matchType = MatchType.ExactLemma, score = 1000))
         }
         formIndex[normalized]?.let { entry ->
-            matches.putBest(entry.lemma, LookupResult(entry, normalized, MatchType.InflectedForm, 900))
+            matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = normalized, matchType = MatchType.InflectedForm, score = 900))
         }
         accentlessLemmaIndex[accentless]?.let { entry ->
-            matches.putBest(entry.lemma, LookupResult(entry, entry.lemma, MatchType.AccentInsensitive, 760))
+            matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = entry.lemma, matchType = MatchType.AccentInsensitive, score = 760))
         }
         accentlessFormIndex[accentless]?.let { entry ->
-            matches.putBest(entry.lemma, LookupResult(entry, normalized, MatchType.AccentInsensitive, 720))
+            matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = normalized, matchType = MatchType.AccentInsensitive, score = 720))
         }
         for (candidate in PortugueseNormalizer.cliticCandidates(normalized)) {
             lemmaIndex[candidate]?.let { entry ->
-                matches.putBest(entry.lemma, LookupResult(entry, normalized, MatchType.InflectedForm, 860))
+                matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = normalized, matchType = MatchType.InflectedForm, score = 860))
             }
         }
 
@@ -59,11 +59,11 @@ class InMemoryDictionary(entries: List<DictionaryEntry>) {
             val lemma = PortugueseNormalizer.normalizeForLookup(entry.lemma)
             val forms = entry.forms.map { PortugueseNormalizer.normalizeForLookup(it.text) }
             if (lemma.startsWith(normalized) || forms.any { it.startsWith(normalized) }) {
-                matches.putBest(entry.lemma, LookupResult(entry, entry.lemma, MatchType.Prefix, 520))
+                matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = entry.lemma, matchType = MatchType.Prefix, score = 520))
             } else {
                 val accentlessLemma = PortugueseNormalizer.stripAccents(entry.lemma)
                 if (accentlessLemma.startsWith(accentless)) {
-                    matches.putBest(entry.lemma, LookupResult(entry, entry.lemma, MatchType.Prefix, 480))
+                    matches.putBest(entry.lemma, LookupResult(entry = entry, matchedForm = entry.lemma, matchType = MatchType.Prefix, score = 480))
                 }
             }
         }
@@ -85,8 +85,8 @@ class InMemoryDictionary(entries: List<DictionaryEntry>) {
                         meaning.lowercase().contains(" $normalized")
                 }
                 when {
-                    exact != null -> LookupResult(entry, exact, MatchType.EnglishMeaning, 840)
-                    prefix != null -> LookupResult(entry, prefix, MatchType.EnglishMeaning, 620)
+                    exact != null -> LookupResult(entry = entry, matchedForm = exact, matchType = MatchType.EnglishMeaning, score = 840)
+                    prefix != null -> LookupResult(entry = entry, matchedForm = prefix, matchType = MatchType.EnglishMeaning, score = 620)
                     else -> null
                 }
             }
