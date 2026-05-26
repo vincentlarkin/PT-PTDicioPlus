@@ -14,6 +14,19 @@ Quality bar:
 - Definitions/translations must show source provenance and licensing.
 - The app must stay small, clean, and maintainable.
 
+Competitive bar:
+
+- Priberam sets expectations around PT-PT/PT-BR and AO toggles, locutions, phraseology, synonyms/antonyms, conjugation, etymology, pronunciation, and technical vocabulary.
+- Infopedia / Porto Editora sets expectations around large bilingual coverage, examples, expressions, verb support, and a polished cross-device dictionary surface.
+- EU-PTDicio+ should not clone a publisher app; it should win on instant offline PT-PT lookup, transparent sources, and form-aware Portuguese-to-English results.
+
+Learner UX rules:
+
+- Search results stay compact. Tapping a result opens the full entry surface.
+- Example sentences should be real source examples when available, paired with English translations when the source provides them.
+- Verb forms should be grouped by learner task: present, past, future/conditional, subjunctive, commands, and non-finite forms.
+- Form labels should translate grammar tags into English-speaker cues such as `I`, `we`, `he/she`, `preterite`, and `subjunctive`.
+
 ## Native App Direction
 
 Use Kotlin with Jetpack Compose for Android. Google now describes Compose as the recommended native Android UI toolkit, and it gives us a good path to share presentation patterns with Compose for Wear OS later.
@@ -30,7 +43,7 @@ Planned modules:
 
 Storage/search direction:
 
-- Ship a prebuilt SQLite database with FTS5-backed prefix/full-text search.
+- Ship a prebuilt SQLite database with Android-compatible FTS4-backed prefix/full-text search.
 - Keep a separate normalized-form table mapping inflected forms to lemmas.
 - Store source IDs per sense so attribution and debugging stay possible.
 - Load compact result rows first, then lazy-load richer sense details.
@@ -132,16 +145,22 @@ Useful commands:
 .\gradlew.bat :app:assembleDebug
 ```
 
-The current app uses seeded sample entries from `dictionary-core`; real dictionary data import is the next major step.
-
 Data import:
 
 ```powershell
 .\tools\fetch-open-sources.ps1
-.\gradlew.bat :dictionary-importer:run --args="--input C:\path\to\EU-PTDicio+\data\raw\kaikki.org-dictionary-Portuguese.jsonl --frequency C:\path\to\EU-PTDicio+\data\raw\hf-eu-pt-words-top.txt --output C:\path\to\EU-PTDicio+\data\build\euptdicio-kaikki.sqlite"
+.\gradlew.bat :dictionary-importer:run --args="--input C:\path\to\EU-PTDicio+\data\raw\kaikki.org-dictionary-Portuguese.jsonl --frequency C:\path\to\EU-PTDicio+\data\raw\hf-eu-pt-words-top.txt --freedict-por-eng C:\path\to\EU-PTDicio+\data\raw\freedict-por-eng.tei --freedict-eng-por C:\path\to\EU-PTDicio+\data\raw\freedict-eng-por.tei --output C:\path\to\EU-PTDicio+\data\build\euptdicio-kaikki.sqlite"
 ```
 
 See `docs/SOURCES.md` and `data/sources/source-registry.json` for source policy and authorized input slots.
+
+Current local database:
+
+- 467,971 entries: 427,242 Kaikki, 10,661 FreeDict PT->EN, and 30,068 inverted FreeDict EN->PT.
+- 608,499 senses and 503,273 forms.
+- 10,091 example sentences, 7,567 with English translations.
+- 142,443 entries with European Portuguese frequency/commonality signals.
+- Indexed lowercase glosses and column-scoped FTS keep common EN/PT lookups in the low single-digit millisecond range on the local build machine.
 
 ## Android UX Plan
 

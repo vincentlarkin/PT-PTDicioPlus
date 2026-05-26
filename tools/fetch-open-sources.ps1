@@ -18,10 +18,26 @@ $sources = @(
         license = 'Verify package metadata before import'
     },
     @{
+        id = 'freedict-eng-por-source'
+        url = 'https://download.freedict.org/dictionaries/eng-por/0.3/freedict-eng-por-0.3.src.tar.xz'
+        file = 'freedict-eng-por-0.3.src.tar.xz'
+        extractEntry = 'eng-por/eng-por.tei'
+        extractFile = 'freedict-eng-por.tei'
+        license = 'GNU GPL 2.0 or later'
+    },
+    @{
         id = 'freedict-por-eng'
         url = 'https://download.freedict.org/dictionaries/por-eng/0.1.1/freedict-por-eng-0.1.1.dictd.tar.bz2'
         file = 'freedict-por-eng-0.1.1.dictd.tar.bz2'
         license = 'Verify package metadata before import'
+    },
+    @{
+        id = 'freedict-por-eng-source'
+        url = 'https://download.freedict.org/dictionaries/por-eng/0.1.1/freedict-por-eng-0.1.1.src.tar.bz2'
+        file = 'freedict-por-eng-0.1.1.src.tar.bz2'
+        extractEntry = 'por-eng/por-eng.tei'
+        extractFile = 'freedict-por-eng.tei'
+        license = 'GNU GPL 2.0 or later'
     },
     @{
         id = 'hf-eu-pt-web-frequency'
@@ -37,11 +53,19 @@ foreach ($source in $sources) {
         Invoke-WebRequest -UseBasicParsing -Uri $source.url -OutFile $output
     }
     $file = Get-Item -LiteralPath $output
+    $extractedFile = $null
+    if ($source.extractEntry) {
+        $extractedFile = Join-Path $rawDir $source.extractFile
+        if (!(Test-Path -LiteralPath $extractedFile)) {
+            cmd /c "tar -xOf `"$output`" `"$($source.extractEntry)`" > `"$extractedFile`""
+        }
+    }
     $manifest = Join-Path $rawDir "$($source.id).source.json"
     @{
         sourceId = $source.id
         sourceUrl = $source.url
         localFile = $file.FullName
+        extractedFile = $extractedFile
         bytes = $file.Length
         downloadedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
         license = $source.license

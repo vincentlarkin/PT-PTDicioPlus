@@ -7,14 +7,14 @@ class InMemoryDictionary(entries: List<DictionaryEntry>) {
     private val formIndex = buildMap {
         for (entry in entries) {
             for (form in entry.forms) {
-                put(PortugueseNormalizer.normalizeForLookup(form), entry)
+                put(PortugueseNormalizer.normalizeForLookup(form.text), entry)
             }
         }
     }
     private val accentlessFormIndex = buildMap {
         for (entry in entries) {
             for (form in entry.forms) {
-                put(PortugueseNormalizer.stripAccents(form), entry)
+                put(PortugueseNormalizer.stripAccents(form.text), entry)
             }
         }
     }
@@ -57,7 +57,7 @@ class InMemoryDictionary(entries: List<DictionaryEntry>) {
 
         for (entry in entries) {
             val lemma = PortugueseNormalizer.normalizeForLookup(entry.lemma)
-            val forms = entry.forms.map(PortugueseNormalizer::normalizeForLookup)
+            val forms = entry.forms.map { PortugueseNormalizer.normalizeForLookup(it.text) }
             if (lemma.startsWith(normalized) || forms.any { it.startsWith(normalized) }) {
                 matches.putBest(entry.lemma, LookupResult(entry, entry.lemma, MatchType.Prefix, 520))
             } else {

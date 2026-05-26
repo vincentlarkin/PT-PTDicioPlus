@@ -21,11 +21,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,9 +53,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.euptdicio.core.DictionaryForm
 import com.euptdicio.core.LookupDirection
 import com.euptdicio.core.LookupResult
 import com.euptdicio.core.MatchType
+import com.euptdicio.core.PartOfSpeech
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -94,6 +97,7 @@ private fun DictionaryApp() {
     var englishQuery by rememberSaveable { mutableStateOf("") }
     var sortModeName by rememberSaveable { mutableStateOf(SortMode.Popularity.name) }
     var results by remember { mutableStateOf<List<LookupResult>>(emptyList()) }
+    var selectedResult by remember { mutableStateOf<LookupResult?>(null) }
     var lookupError by remember { mutableStateOf<String?>(null) }
     var isSearching by remember { mutableStateOf(false) }
     var debugStatus by remember { mutableStateOf<DictionaryDebugStatus?>(null) }
@@ -106,6 +110,7 @@ private fun DictionaryApp() {
     }
 
     LaunchedEffect(query, direction, sortMode) {
+        selectedResult = null
         if (query.isBlank()) {
             results = emptyList()
             lookupError = null
@@ -129,17 +134,32 @@ private fun DictionaryApp() {
         }
     }
 
-    LaunchedEffect(debugRefreshKey) {
-        debugStatus = withContext(Dispatchers.IO) {
-            dictionary.debugStatus()
+    if (debugRefreshKey > 0) {
+        LaunchedEffect(debugRefreshKey) {
+            debugStatus = withContext(Dispatchers.IO) {
+                dictionary.debugStatus()
+            }
         }
+    }
+
+    val selected = selectedResult
+    if (selected != null) {
+        EntryDetailScreen(
+            result = selected,
+            direction = direction,
+            onBack = { selectedResult = null },
+        )
+        return
     }
 
     Scaffold(
         bottomBar = {
             DirectionNavBar(
                 selectedDirection = direction,
-                onDirectionSelected = { directionName = it.name },
+                onDirectionSelected = {
+                    selectedResult = null
+                    directionName = it.name
+                },
             )
         },
     ) { padding ->
@@ -159,6 +179,7 @@ private fun DictionaryApp() {
                 query = query,
                 direction = direction,
                 onQueryChange = {
+                    selectedResult = null
                     when (direction) {
                         LookupDirection.PortugueseToEnglish -> portugueseQuery = it
                         LookupDirection.EnglishToPortuguese -> englishQuery = it
@@ -187,12 +208,7 @@ private fun DictionaryApp() {
                     ResultCard(
                         result = result,
                         direction = direction,
-                        onClick = {
-                            when (direction) {
-                                LookupDirection.PortugueseToEnglish -> portugueseQuery = result.entry.lemma
-                                LookupDirection.EnglishToPortuguese -> englishQuery = result.matchedForm
-                            }
-                        },
+                        onClick = { selectedResult = result },
                     )
                 }
             }
@@ -344,6 +360,15 @@ private fun SettingsMenu(
             DropdownMenuItem(
                 text = {
                     Text(
+                        text = "Examples: ${debugStatus?.exampleCount ?: "checking"}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                },
+                onClick = onRefreshDebug,
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
                         text = "Asset: ${debugStatus?.assetBytes?.toMb() ?: "?"} MB",
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -426,7 +451,7 @@ private fun ResultSummary(
     isSearching: Boolean,
 ) {
     val emptyPrompt = when (direction) {
-        LookupDirection.PortugueseToEnglish -> "Try falar, falávamos, cão, faze-lo, or pôr"
+        LookupDirection.PortugueseToEnglish -> "Try falar, falávamos, cão, fazê-lo, or pôr"
         LookupDirection.EnglishToPortuguese -> "Try dog, good, speak, make, or thank you"
     }
     val text = when {
@@ -491,17 +516,28 @@ private fun ResultCard(
             Text(
                 text = result.entry.meanings.joinToString("; "),
                 style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             MatchNote(result = result, direction = direction)
-            FormsSection(forms = result.entry.forms)
-            if (result.entry.labels.isNotEmpty()) {
-                Spacer(Modifier.height(10.dp))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    result.entry.labels.forEach { label ->
-                        AssistChip(onClick = {}, label = { Text(label) })
-                    }
-                }
-            }
+            ResultSignals(result = result)
+        }
+    }
+}
+
+@Composable
+private fun ResultSignals(result: LookupResult) {
+    val formCount = result.entry.forms.size
+    val exampleCount = result.entry.examples.size
+    if (formCount == 0 && exampleCount == 0) return
+
+    Spacer(Modifier.height(10.dp))
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (formCount > 0) {
+            AssistChip(onClick = {}, label = { Text("$formCount forms") })
+        }
+        if (exampleCount > 0) {
+            AssistChip(onClick = {}, label = { Text("$exampleCount examples") })
         }
     }
 }
@@ -527,62 +563,295 @@ private fun MatchNote(result: LookupResult, direction: LookupDirection) {
 }
 
 @Composable
-private fun FormsSection(forms: List<String>) {
-    if (forms.isEmpty()) return
-
-    val visibleForms = forms.take(10)
-    val hiddenCount = forms.size - visibleForms.size
-
-    Spacer(Modifier.height(12.dp))
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.46f),
-                shape = RoundedCornerShape(8.dp),
-            )
-            .padding(12.dp),
-    ) {
-        Text(
-            text = "Forms",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(8.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalArrangement = Arrangement.spacedBy(7.dp),
+private fun EntryDetailScreen(
+    result: LookupResult,
+    direction: LookupDirection,
+    onBack: () -> Unit,
+) {
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(padding),
         ) {
-            visibleForms.forEach { form ->
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                ) {
-                    Text(
-                        text = form,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+            DetailTopBar(result = result, onBack = onBack)
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 18.dp),
+            ) {
+                item {
+                    MeaningsSection(result = result)
                 }
-            }
-            if (hiddenCount > 0) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                ) {
-                    Text(
-                        text = "+$hiddenCount",
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                    )
+                if (result.entry.examples.isNotEmpty()) {
+                    item {
+                        ExamplesSection(result = result)
+                    }
+                }
+                if (result.entry.forms.isNotEmpty()) {
+                    item {
+                        FormsSection(result = result)
+                    }
+                }
+                if (result.entry.labels.isNotEmpty()) {
+                    item {
+                        SourceSection(result = result, direction = direction)
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DetailTopBar(
+    result: LookupResult,
+    onBack: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = result.entry.lemma,
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = result.entry.partOfSpeech.displayName,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MeaningsSection(result: LookupResult) {
+    DetailSection(title = "Meanings") {
+        result.entry.meanings.forEachIndexed { index, meaning ->
+            Row(
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.padding(vertical = 4.dp),
+            ) {
+                Text(
+                    text = "${index + 1}.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(30.dp),
+                )
+                Text(
+                    text = meaning,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamplesSection(result: LookupResult) {
+    DetailSection(title = "Examples") {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            result.entry.examples.forEach { example ->
+                val translation = example.translation
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            text = example.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        if (!translation.isNullOrBlank()) {
+                            Spacer(Modifier.height(5.dp))
+                            Text(
+                                text = translation,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormsSection(result: LookupResult) {
+    val groups = result.formGroups()
+    DetailSection(title = if (result.entry.partOfSpeech == PartOfSpeech.Verb) "Verb forms" else "Forms") {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            groups.forEach { group ->
+                Column {
+                    Text(
+                        text = group.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        group.forms.forEach { form ->
+                            FormChip(form = form)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FormChip(form: DictionaryForm) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)) {
+            Text(
+                text = form.text,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            val label = form.learnerLabel()
+            if (label.isNotBlank()) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceSection(
+    result: LookupResult,
+    direction: LookupDirection,
+) {
+    DetailSection(title = "Source") {
+        MatchNote(result = result, direction = direction)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            result.entry.labels.forEach { label ->
+                AssistChip(onClick = {}, label = { Text(label) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSection(
+    title: String,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(8.dp),
+            )
+            .padding(14.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black,
+        )
+        Spacer(Modifier.height(10.dp))
+        content()
+    }
+}
+
+private data class FormGroup(
+    val title: String,
+    val forms: List<DictionaryForm>,
+)
+
+private fun LookupResult.formGroups(): List<FormGroup> {
+    val uniqueForms = entry.forms.distinctBy { it.text }
+    if (entry.partOfSpeech != PartOfSpeech.Verb) {
+        return listOf(FormGroup("Forms", uniqueForms.take(36)))
+    }
+
+    val specs = listOf(
+        "Present" to { tags: Set<String> -> "present" in tags && "subjunctive" !in tags && "imperative" !in tags },
+        "Past" to { tags: Set<String> -> tags.any { it in setOf("preterite", "imperfect", "pluperfect") } && "subjunctive" !in tags },
+        "Future / conditional" to { tags: Set<String> -> tags.any { it in setOf("future", "conditional") } && "subjunctive" !in tags },
+        "Subjunctive" to { tags: Set<String> -> "subjunctive" in tags },
+        "Commands" to { tags: Set<String> -> "imperative" in tags },
+        "Infinitive / gerund / participle" to { tags: Set<String> ->
+            tags.any { it in setOf("infinitive", "gerund", "participle") }
+        },
+    )
+    val used = hashSetOf<String>()
+    val groups = specs.mapNotNull { (title, predicate) ->
+        val forms = uniqueForms.filter { form ->
+            val tags = form.tags.toSet()
+            form.text !in used && predicate(tags)
+        }.take(18)
+        used.addAll(forms.map { it.text })
+        if (forms.isEmpty()) null else FormGroup(title, forms)
+    }.toMutableList()
+
+    val other = uniqueForms.filter { it.text !in used }.take(18)
+    if (other.isNotEmpty()) groups.add(FormGroup("Other forms", other))
+    return groups
+}
+
+private fun DictionaryForm.learnerLabel(): String {
+    val tags = tags.toSet()
+    val person = when {
+        "first-person" in tags && "singular" in tags -> "I"
+        "second-person" in tags && "singular" in tags -> "you"
+        "third-person" in tags && "singular" in tags -> "he/she"
+        "first-person" in tags && "plural" in tags -> "we"
+        "second-person" in tags && "plural" in tags -> "you pl."
+        "third-person" in tags && "plural" in tags -> "they"
+        else -> null
+    }
+    val tense = when {
+        "present" in tags -> "present"
+        "preterite" in tags -> "preterite"
+        "imperfect" in tags -> "imperfect"
+        "pluperfect" in tags -> "pluperfect"
+        "future" in tags -> "future"
+        "conditional" in tags -> "conditional"
+        "subjunctive" in tags -> "subjunctive"
+        "imperative" in tags && "negative" in tags -> "negative command"
+        "imperative" in tags -> "command"
+        "gerund" in tags -> "gerund"
+        "infinitive" in tags -> "infinitive"
+        "participle" in tags -> "participle"
+        else -> null
+    }
+    return listOfNotNull(person, tense).distinct().joinToString(" · ")
 }
 
 @Composable

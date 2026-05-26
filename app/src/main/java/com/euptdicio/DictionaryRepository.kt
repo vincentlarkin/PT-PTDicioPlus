@@ -4,12 +4,15 @@ import android.content.Context
 import android.database.sqlite.SQLiteException
 import android.database.sqlite.SQLiteDatabase
 import com.euptdicio.core.DictionaryEntry
+import com.euptdicio.core.DictionaryExample
+import com.euptdicio.core.DictionaryForm
 import com.euptdicio.core.LookupDirection
 import com.euptdicio.core.LookupResult
 import com.euptdicio.core.MatchType
 import com.euptdicio.core.PartOfSpeech
 import com.euptdicio.core.PortugueseNormalizer
 import java.io.File
+import java.util.Locale
 
 class DictionaryRepository(private val context: Context) {
     private val database: SQLiteDatabase by lazy {
@@ -44,6 +47,7 @@ class DictionaryRepository(private val context: Context) {
         var ftsOk = false
         var entryCount: Long? = null
         var frequencySignalCount: Long? = null
+        var exampleCount: Long? = null
         var message = "OK"
 
         runCatching {
@@ -55,6 +59,9 @@ class DictionaryRepository(private val context: Context) {
                 }
                 db.rawQuery("SELECT COUNT(*) FROM entries WHERE commonality_score > 0", emptyArray()).use { cursor ->
                     frequencySignalCount = if (cursor.moveToFirst()) cursor.getLong(0) else null
+                }
+                db.rawQuery("SELECT COUNT(*) FROM examples", emptyArray()).use { cursor ->
+                    exampleCount = if (cursor.moveToFirst()) cursor.getLong(0) else null
                 }
                 ftsOk = runCatching {
                     db.rawQuery("SELECT rowid FROM search_fts LIMIT 1", emptyArray()).use { it.moveToFirst() }
@@ -75,6 +82,7 @@ class DictionaryRepository(private val context: Context) {
             ftsOk = ftsOk,
             entryCount = entryCount,
             frequencySignalCount = frequencySignalCount,
+            exampleCount = exampleCount,
             message = message,
         )
     }
@@ -83,27 +91,39 @@ class DictionaryRepository(private val context: Context) {
         val rows = linkedMapOf<Long, SearchHit>()
         queryExactLemma(query, limit, rows)
         queryExactForm(query, limit, rows)
-        queryFts(query.toFtsPrefixExpression(), limit, rows, MatchType.Prefix, 520)
-        if (rows.size < limit) {
-            queryPortuguesePrefix(query, limit, rows)
-        }
+        queryFts(
+            query.toFtsPrefixExpression("lemma", "forms"),
+            limit * FTS_CANDIDATE_MULTIPLIER,
+            rows,
+            MatchType.Prefix,
+            520,
+        )
         if (rows.size < limit) {
             queryFts(
-                PortugueseNormalizer.stripAccents(query).toFtsPrefixExpression(),
-                limit,
+                PortugueseNormalizer.stripAccents(query).toFtsPrefixExpression("lemma", "forms"),
+                limit * FTS_CANDIDATE_MULTIPLIER,
                 rows,
                 MatchType.AccentInsensitive,
                 470,
             )
         }
+        if (rows.size < limit) {
+            queryPortuguesePrefix(query, limit, rows)
+        }
         return hydrate(rows.bestHits(limit))
     }
 
     private fun lookupEnglish(query: String, limit: Int): List<LookupResult> {
-        val clean = query.lowercase()
+        val clean = query.lowercase(Locale.ROOT)
         val rows = linkedMapOf<Long, SearchHit>()
         queryEnglishMeaning(clean, limit, rows)
-        queryFts(clean.toFtsPrefixExpression(), limit, rows, MatchType.EnglishMeaning, 610)
+        queryFts(
+            clean.toFtsPrefixExpression("meanings"),
+            limit * FTS_CANDIDATE_MULTIPLIER,
+            rows,
+            MatchType.EnglishMeaning,
+            610,
+        )
         if (rows.size < limit) {
             queryEnglishPrefix(clean, limit, rows)
         }
@@ -170,42 +190,24 @@ class DictionaryRepository(private val context: Context) {
     }
 
     private fun queryEnglishMeaning(query: String, limit: Int, rows: MutableMap<Long, SearchHit>) {
+        val upperBound = query + "\uffff"
         database.rawQuery(
             """
             SELECT e.entry_id, s.gloss, e.lemma, e.pos, e.commonality_score,
                 CASE
-                    WHEN lower(s.gloss) = ? THEN 940
-                    WHEN lower(s.gloss) LIKE ? THEN 930
-                    WHEN lower(s.gloss) LIKE ? THEN 910
-                    WHEN lower(s.gloss) LIKE ? THEN 900
-                    WHEN lower(s.gloss) LIKE ? THEN 860
-                    WHEN lower(s.gloss) LIKE ? THEN 620
-                    ELSE 0
+                    WHEN s.gloss_lc = ? THEN 940
+                    ELSE 860
                 END AS match_score
             FROM senses s
             JOIN entries e ON e.entry_id = s.entry_id
-            WHERE lower(s.gloss) = ?
-                OR lower(s.gloss) LIKE ?
-                OR lower(s.gloss) LIKE ?
-                OR lower(s.gloss) LIKE ?
-                OR lower(s.gloss) LIKE ?
-                OR lower(s.gloss) LIKE ?
-            ORDER BY match_score DESC
+            WHERE s.gloss_lc >= ? AND s.gloss_lc < ?
+            ORDER BY match_score DESC, e.commonality_score DESC
             LIMIT ?
             """.trimIndent(),
             arrayOf(
                 query,
-                "$query (%",
-                "$query,%",
-                "$query;%",
-                "$query %",
-                "$query%",
                 query,
-                "$query (%",
-                "$query,%",
-                "$query;%",
-                "$query %",
-                "$query%",
+                upperBound,
                 limit.toString(),
             ),
         ).use { cursor ->
@@ -267,17 +269,22 @@ class DictionaryRepository(private val context: Context) {
             """
             SELECT e.entry_id, s.gloss, e.lemma, e.pos, e.commonality_score,
                 CASE
-                    WHEN lower(s.gloss) LIKE ? THEN 500
-                    WHEN lower(s.gloss) LIKE ? THEN 420
+                    WHEN s.gloss_lc >= ? AND s.gloss_lc < ? THEN 500
                     ELSE 0
                 END AS match_score
             FROM senses s
             JOIN entries e ON e.entry_id = s.entry_id
-            WHERE lower(s.gloss) LIKE ? OR lower(s.gloss) LIKE ?
-            ORDER BY match_score DESC
+            WHERE s.gloss_lc >= ? AND s.gloss_lc < ?
+            ORDER BY match_score DESC, e.commonality_score DESC
             LIMIT ?
             """.trimIndent(),
-            arrayOf("$query %", "% $query%", "$query %", "% $query%", limit.toString()),
+            arrayOf(
+                query,
+                query + "\uffff",
+                query,
+                query + "\uffff",
+                limit.toString(),
+            ),
         ).use { cursor ->
             while (cursor.moveToNext()) {
                 rows.putBest(
@@ -314,6 +321,7 @@ class DictionaryRepository(private val context: Context) {
                 FROM search_fts
                 JOIN entries ON entries.entry_id = search_fts.rowid
                 WHERE search_fts MATCH ?
+                ORDER BY entries.commonality_score DESC
                 LIMIT ?
                 """.trimIndent(),
                 arrayOf(expression, limit.toString()),
@@ -347,13 +355,15 @@ class DictionaryRepository(private val context: Context) {
         val entries = loadEntries(ids)
         val meanings = loadMeanings(ids)
         val forms = loadForms(ids)
+        val examples = loadExamples(ids)
 
         return hits.mapNotNull { hit ->
             val base = entries[hit.entryId] ?: return@mapNotNull null
             LookupResult(
                 entry = base.copy(
                     meanings = meanings[hit.entryId].orEmpty().take(6),
-                    forms = forms[hit.entryId].orEmpty().take(24),
+                    forms = forms[hit.entryId].orEmpty().take(MAX_FORMS_PER_ENTRY),
+                    examples = examples[hit.entryId].orEmpty().take(MAX_EXAMPLES_PER_ENTRY),
                 ),
                 matchedForm = hit.matchedForm,
                 matchType = hit.matchType,
@@ -410,18 +420,57 @@ class DictionaryRepository(private val context: Context) {
         }
     }
 
-    private fun loadForms(ids: List<Long>): Map<Long, List<String>> {
+    private fun loadForms(ids: List<Long>): Map<Long, List<DictionaryForm>> {
         val placeholders = ids.joinToString(",") { "?" }
         return database.rawQuery(
             """
-            SELECT entry_id, form
+            SELECT entry_id, form, tags
             FROM forms
             WHERE entry_id IN ($placeholders)
-            ORDER BY form
+            ORDER BY entry_id, tags, form
             """.trimIndent(),
             ids.map(Long::toString).toTypedArray(),
         ).use { cursor ->
-            buildGroupedStrings(cursor)
+            val grouped = linkedMapOf<Long, MutableList<DictionaryForm>>()
+            while (cursor.moveToNext()) {
+                val forms = grouped.getOrPut(cursor.getLong(0)) { mutableListOf() }
+                if (forms.size < MAX_FORMS_PER_ENTRY) {
+                    forms.add(
+                        DictionaryForm(
+                            text = cursor.getString(1),
+                            tags = cursor.getString(2).split(',').filter(String::isNotBlank),
+                        ),
+                    )
+                }
+            }
+            grouped
+        }
+    }
+
+    private fun loadExamples(ids: List<Long>): Map<Long, List<DictionaryExample>> {
+        val placeholders = ids.joinToString(",") { "?" }
+        return database.rawQuery(
+            """
+            SELECT entry_id, sentence, translation
+            FROM examples
+            WHERE entry_id IN ($placeholders)
+            ORDER BY entry_id, example_id
+            """.trimIndent(),
+            ids.map(Long::toString).toTypedArray(),
+        ).use { cursor ->
+            val grouped = linkedMapOf<Long, MutableList<DictionaryExample>>()
+            while (cursor.moveToNext()) {
+                val examples = grouped.getOrPut(cursor.getLong(0)) { mutableListOf() }
+                if (examples.size < MAX_EXAMPLES_PER_ENTRY) {
+                    examples.add(
+                        DictionaryExample(
+                            text = cursor.getString(1),
+                            translation = if (cursor.isNull(2)) null else cursor.getString(2),
+                        ),
+                    )
+                }
+            }
+            grouped
         }
     }
 
@@ -459,7 +508,22 @@ class DictionaryRepository(private val context: Context) {
 
     private fun openDatabase(): SQLiteDatabase {
         val file = ensureDatabaseCopied()
-        return SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+        return SQLiteDatabase.openDatabase(
+            file.absolutePath,
+            null,
+            SQLiteDatabase.OPEN_READONLY or SQLiteDatabase.NO_LOCALIZED_COLLATORS,
+        ).also(::configureReadOnlyDatabase)
+    }
+
+    private fun configureReadOnlyDatabase(database: SQLiteDatabase) {
+        listOf(
+            "PRAGMA temp_store = MEMORY",
+            "PRAGMA cache_size = -8192",
+            "PRAGMA mmap_size = 268435456",
+            "PRAGMA query_only = ON",
+        ).forEach { pragma ->
+            runCatching { database.execSQL(pragma) }
+        }
     }
 
     private fun localDatabaseFile(): File {
@@ -469,9 +533,13 @@ class DictionaryRepository(private val context: Context) {
     private fun isSchemaReadable(file: File): Boolean {
         return runCatching {
             SQLiteDatabase.openDatabase(file.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
-                db.rawQuery("SELECT COUNT(*) FROM entries", emptyArray()).use { cursor ->
+                val hasEntries = db.rawQuery("SELECT COUNT(*) FROM entries", emptyArray()).use { cursor ->
                     cursor.moveToFirst() && cursor.getLong(0) > 100_000
                 }
+                val hasExamplesTable = db.rawQuery("SELECT COUNT(*) FROM examples", emptyArray()).use { cursor ->
+                    cursor.moveToFirst()
+                }
+                hasEntries && hasExamplesTable
             }
         }.getOrDefault(false)
     }
@@ -503,12 +571,20 @@ class DictionaryRepository(private val context: Context) {
             .take(limit)
     }
 
-    private fun String.toFtsPrefixExpression(): String {
-        return Regex("[\\p{L}\\p{N}]+")
+    private fun String.toFtsPrefixExpression(vararg columns: String): String {
+        val tokens = Regex("[\\p{L}\\p{N}]+")
             .findAll(this)
             .map { it.value.replace("\"", "\"\"") }
             .filter { it.isNotBlank() }
-            .joinToString(" ") { "\"$it\"*" }
+            .toList()
+
+        return tokens.joinToString(" ") { token ->
+            if (columns.isEmpty()) {
+                "$token*"
+            } else {
+                columns.joinToString(" OR ") { column -> "$column:$token*" }
+            }
+        }
     }
 
     private fun String.toPartOfSpeech(): PartOfSpeech {
@@ -573,6 +649,9 @@ class DictionaryRepository(private val context: Context) {
         const val ASSET_PATH = "dictionary/euptdicio.sqlite"
         const val DATABASE_NAME = "euptdicio.sqlite"
         const val MIN_DATABASE_BYTES = 100_000_000L
+        const val FTS_CANDIDATE_MULTIPLIER = 4
+        const val MAX_FORMS_PER_ENTRY = 96
+        const val MAX_EXAMPLES_PER_ENTRY = 8
 
         val COMMON_LEMMA_BONUS = mapOf(
             "gato" to 180,
@@ -616,5 +695,6 @@ data class DictionaryDebugStatus(
     val ftsOk: Boolean,
     val entryCount: Long?,
     val frequencySignalCount: Long?,
+    val exampleCount: Long?,
     val message: String,
 )
