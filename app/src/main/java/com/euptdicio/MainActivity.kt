@@ -28,16 +28,16 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -63,9 +63,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.euptdicio.core.DictionaryForm
 import com.euptdicio.core.LookupDirection
 import com.euptdicio.core.LookupResult
@@ -483,16 +485,13 @@ private fun SettingsMenu(
     onDarkThemeChange: (Boolean) -> Unit,
     iconTint: Color = MaterialTheme.colorScheme.primary,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
-    val menuContainer = Color(0xFF17211E)
-    val menuText = Color(0xFFF3F7F2)
-    val menuSubtle = Color(0xFFC6D5CF)
 
     Box {
         IconButton(
             onClick = {
-                expanded = true
+                showSettings = true
                 onRefreshDebug()
             },
         ) {
@@ -502,108 +501,133 @@ private fun SettingsMenu(
                 tint = iconTint,
             )
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = menuContainer,
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = if (darkTheme) "Dark mode" else "Light mode",
-                        color = menuText,
-                    )
-                },
-                trailingIcon = {
-                    Switch(
-                        checked = darkTheme,
-                        onCheckedChange = onDarkThemeChange,
-                    )
-                },
-                onClick = { onDarkThemeChange(!darkTheme) },
-            )
-            DropdownMenuItem(
-                text = { Text("Debug checks", color = menuText) },
-                onClick = onRefreshDebug,
-            )
-            DebugStatusRow("DB available", debugStatus?.schemaOk == true, menuText)
-            DebugStatusRow("Asset bundled", debugStatus?.assetPresent == true, menuText)
-            DebugStatusRow("Local copy", debugStatus?.localPresent == true, menuText)
-            DebugStatusRow("Fallback search", debugStatus?.schemaOk == true, menuText)
-            DebugStatusRow("FTS boost", debugStatus?.ftsOk == true, menuText)
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Entries: ${debugStatus?.entryCount ?: "checking"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = menuSubtle,
-                    )
-                },
-                onClick = onRefreshDebug,
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Signals: ${debugStatus?.frequencySignalCount ?: "checking"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = menuSubtle,
-                    )
-                },
-                onClick = onRefreshDebug,
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Examples: ${debugStatus?.exampleCount ?: "checking"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = menuSubtle,
-                    )
-                },
-                onClick = onRefreshDebug,
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Asset: ${debugStatus?.assetBytes?.toMb() ?: "?"} MB",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = menuSubtle,
-                    )
-                },
-                onClick = onRefreshDebug,
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "Local: ${debugStatus?.localBytes?.toMb() ?: "?"} MB",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = menuSubtle,
-                    )
-                },
-                onClick = onRefreshDebug,
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        text = "GitHub repo",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = menuText,
-                    )
-                },
-                onClick = {
-                    expanded = false
+        if (showSettings) {
+            SettingsDialog(
+                debugStatus = debugStatus,
+                onRefreshDebug = onRefreshDebug,
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+                onOpenRepository = {
+                    showSettings = false
                     uriHandler.openUri(REPOSITORY_URL)
                 },
+                onDismiss = { showSettings = false },
             )
-            if (debugStatus != null && debugStatus.message != "OK") {
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = debugStatus.message.take(80),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
+        }
+    }
+}
+
+@Composable
+private fun SettingsDialog(
+    debugStatus: DictionaryDebugStatus?,
+    onRefreshDebug: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    onOpenRepository: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var debugExpanded by remember { mutableStateOf(false) }
+    val panelColor = Color(0xFF17211E)
+    val rowColor = Color(0xFF22302B)
+    val textColor = Color(0xFFF3F7F2)
+    val subtleTextColor = Color(0xFFC6D5CF)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = panelColor,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = textColor,
+                )
+                SettingsRow(
+                    title = if (darkTheme) "Dark mode" else "Light mode",
+                    subtitle = "Switch the app theme",
+                    color = rowColor,
+                    textColor = textColor,
+                    subtleTextColor = subtleTextColor,
+                    onClick = { onDarkThemeChange(!darkTheme) },
+                    trailing = {
+                        Switch(
+                            checked = darkTheme,
+                            onCheckedChange = onDarkThemeChange,
                         )
                     },
-                    onClick = onRefreshDebug,
+                )
+                SettingsRow(
+                    title = "GitHub repo",
+                    subtitle = "vincentlarkin/PT-PTDicioPlus",
+                    color = rowColor,
+                    textColor = textColor,
+                    subtleTextColor = subtleTextColor,
+                    onClick = onOpenRepository,
+                    leading = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_github_mark),
+                            contentDescription = null,
+                            tint = textColor,
+                            modifier = Modifier.size(24.dp),
+                        )
+                    },
+                )
+                SettingsRow(
+                    title = "Debug",
+                    subtitle = if (debugExpanded) "Hide database checks" else "Show database checks",
+                    color = rowColor,
+                    textColor = textColor,
+                    subtleTextColor = subtleTextColor,
+                    onClick = {
+                        debugExpanded = !debugExpanded
+                        onRefreshDebug()
+                    },
+                    trailing = {
+                        Text(
+                            text = if (debugExpanded) "Hide" else "Open",
+                            color = subtleTextColor,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    },
+                )
+                if (debugExpanded) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp),
+                    ) {
+                        DebugStatusRow("DB available", debugStatus?.schemaOk == true, textColor)
+                        DebugStatusRow("Asset bundled", debugStatus?.assetPresent == true, textColor)
+                        DebugStatusRow("Local copy", debugStatus?.localPresent == true, textColor)
+                        DebugStatusRow("Fallback search", debugStatus?.schemaOk == true, textColor)
+                        DebugStatusRow("FTS boost", debugStatus?.ftsOk == true, textColor)
+                        DebugInfoRow("Entries", "${debugStatus?.entryCount ?: "checking"}", subtleTextColor)
+                        DebugInfoRow("Signals", "${debugStatus?.frequencySignalCount ?: "checking"}", subtleTextColor)
+                        DebugInfoRow("Examples", "${debugStatus?.exampleCount ?: "checking"}", subtleTextColor)
+                        DebugInfoRow("Asset", "${debugStatus?.assetBytes?.toMb() ?: "?"} MB", subtleTextColor)
+                        DebugInfoRow("Local", "${debugStatus?.localBytes?.toMb() ?: "?"} MB", subtleTextColor)
+                        if (debugStatus != null && debugStatus.message != "OK") {
+                            Text(
+                                text = debugStatus.message.take(120),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFFF7B62),
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "2026 Vincent Larkin",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subtleTextColor,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
                 )
             }
         }
@@ -611,24 +635,90 @@ private fun SettingsMenu(
 }
 
 @Composable
-private fun DebugStatusRow(label: String, ok: Boolean, textColor: Color) {
-    DropdownMenuItem(
-        text = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .background(
-                            color = if (ok) Color(0xFF1D8F5A) else Color(0xFFD94C38),
-                            shape = CircleShape,
-                        ),
-                )
-                Spacer(Modifier.width(9.dp))
-                Text(label, color = textColor)
+private fun SettingsRow(
+    title: String,
+    subtitle: String,
+    color: Color,
+    textColor: Color,
+    subtleTextColor: Color,
+    onClick: () -> Unit,
+    leading: @Composable (() -> Unit)? = null,
+    trailing: @Composable (() -> Unit)? = null,
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = color,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(12.dp))
             }
-        },
-        onClick = {},
-    )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = textColor,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subtleTextColor,
+                )
+            }
+            if (trailing != null) {
+                Spacer(Modifier.width(12.dp))
+                trailing()
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugStatusRow(label: String, ok: Boolean, textColor: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(9.dp)
+                .background(
+                    color = if (ok) Color(0xFF1D8F5A) else Color(0xFFD94C38),
+                    shape = CircleShape,
+                ),
+        )
+        Spacer(Modifier.width(9.dp))
+        Text(
+            text = label,
+            color = textColor,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+@Composable
+private fun DebugInfoRow(label: String, value: String, textColor: Color) {
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            text = value,
+            color = textColor,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
