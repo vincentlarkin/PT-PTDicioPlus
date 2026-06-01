@@ -18,3 +18,4 @@ rootProject.name = "EU-PTDicio+"
 include(":app")
 include(":dictionary-core")
 include(":dictionary-importer")
+include(":wear")
