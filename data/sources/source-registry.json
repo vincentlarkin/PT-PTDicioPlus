@@ -5,7 +5,10 @@
       "sourceId": "kaikki-portuguese",
       "status": "active",
       "type": "wiktionary-extract",
-      "direction": ["pt-en", "en-pt"],
+      "direction": [
+        "pt-en",
+        "en-pt"
+      ],
       "url": "https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl",
       "localPath": "data/raw/kaikki.org-dictionary-Portuguese.jsonl",
       "license": "Wiktionary content: CC BY-SA 3.0 and GFDL",
@@ -15,7 +18,9 @@
       "sourceId": "hf-eu-pt-web-frequency",
       "status": "active",
       "type": "frequency",
-      "direction": ["pt"],
+      "direction": [
+        "pt"
+      ],
       "url": "https://huggingface.co/datasets/diplomaticvegetation/portuguese/blob/main/words-top.txt",
       "localPath": "data/raw/hf-eu-pt-words-top.txt",
       "license": "CC0-1.0",
@@ -25,7 +30,9 @@
       "sourceId": "dicionario-aberto",
       "status": "candidate",
       "type": "monolingual-pt-pt",
-      "direction": ["pt"],
+      "direction": [
+        "pt"
+      ],
       "url": "https://dicionario-aberto.net/",
       "license": "Creative Commons Attribution-Share Alike 2.5 Portugal",
       "notes": "Use for PT-PT lemma validation, Portuguese definitions, and spelling cross-checks."
@@ -34,7 +41,9 @@
       "sourceId": "freedict-eng-por",
       "status": "active",
       "type": "bilingual",
-      "direction": ["en-pt"],
+      "direction": [
+        "en-pt"
+      ],
       "url": "https://download.freedict.org/dictionaries/eng-por/0.3/freedict-eng-por-0.3.src.tar.xz",
       "localPath": "data/raw/freedict-eng-por.tei",
       "license": "GNU GPL 2.0 or later, per TEI header",
@@ -44,7 +53,9 @@
       "sourceId": "freedict-por-eng",
       "status": "active",
       "type": "bilingual",
-      "direction": ["pt-en"],
+      "direction": [
+        "pt-en"
+      ],
       "url": "https://download.freedict.org/dictionaries/por-eng/0.1.1/freedict-por-eng-0.1.1.src.tar.bz2",
       "localPath": "data/raw/freedict-por-eng.tei",
       "license": "GNU GPL 2.0 or later, per TEI header",
@@ -54,14 +65,14 @@
       "sourceId": "authorized-official-pt",
       "status": "authorized-input-slot",
       "type": "official-protected-lexicographic",
-      "direction": ["pt", "pt-en", "en-pt"],
+      "direction": [
+        "pt",
+        "pt-en",
+        "en-pt"
+      ],
       "localPath": "data/raw/authorized/official-pt/",
       "authorization": {
-        "holder": "Vincent Larkin",
-        "registration": "LX-PT-2026-00417",
-        "issued": "2026-05-12",
-        "validUntil": "2031-05-12",
-        "scope": "consult, use, adapt, and incorporate official European Portuguese lexicographic excerpts/data into digital support for the identified project"
+        "note": "Authorization details are kept privately by the project owner, not in this repository."
       },
       "license": "Authorized project-specific use; do not redistribute raw files",
       "notes": "Drop provided official exports/files here. Raw protected source material remains ignored by git; generated manifests should preserve source IDs and restrictions."
@@ -70,7 +81,11 @@
       "sourceId": "publisher-authorized",
       "status": "authorized-input-slot",
       "type": "publisher-or-commercial-lexicographic",
-      "direction": ["pt", "pt-en", "en-pt"],
+      "direction": [
+        "pt",
+        "pt-en",
+        "en-pt"
+      ],
       "localPath": "data/raw/authorized/publisher/",
       "license": "Available copyrighted sources may be used only within project authorization scope and with attribution; do not bypass paywalls or access controls",
       "notes": "Use only from lawful available inputs or files provided under authorization. Keep source-specific adapter and manifest separate."
