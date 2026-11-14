@@ -1,0 +1,349 @@
+{
+  "_comment": "Single source of truth for every external dataset. 'use' = ship (text may appear in the app, with attribution) | reference (stats/QA/frequency only; never ship its text) | optional. Fetch with: python3 tools/fetch_datasets.py [--tier core|all] [ids...]",
+  "datasets": [
+    {
+      "id": "kaikki-en-portuguese",
+      "tier": "core",
+      "use": "ship",
+      "desc": "English Wiktionary: Portuguese entries with English glosses, IPA (Portugal/Brazil tagged), inflections, etymology, examples, regional labels",
+      "url": "https://kaikki.org/dictionary/Portuguese/kaikki.org-dictionary-Portuguese.jsonl",
+      "license": "CC BY-SA 4.0 / GFDL (Wiktionary contributors)",
+      "attribution": "Wiktionary contributors, via Wiktextract/Kaikki (Ylonen 2022)"
+    },
+    {
+      "id": "kaikki-en-english",
+      "tier": "core",
+      "use": "ship",
+      "desc": "English Wiktionary: English entries; translation tables give EN->PT equivalents (incl. Portugal/Brazil qualifiers)",
+      "url": "https://kaikki.org/dictionary/English/kaikki.org-dictionary-English.jsonl",
+      "license": "CC BY-SA 4.0 / GFDL (Wiktionary contributors)",
+      "attribution": "Wiktionary contributors, via Wiktextract/Kaikki"
+    },
+    {
+      "id": "kaikki-ptwiktionary",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Portuguese Wiktionary (Wikcionario) full extract: Portuguese-language definitions and translation sections",
+      "url": "https://kaikki.org/dictionary/downloads/pt/pt-extract.jsonl.gz",
+      "license": "CC BY-SA 4.0 (Wikcionario contributors)",
+      "attribution": "Wikcionario contributors, via Wiktextract/Kaikki"
+    },
+    {
+      "id": "dicionario-aberto-xml",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Dicionario Aberto: PT monolingual dictionary (Candido de Figueiredo 1913, modernised), TEI XML",
+      "url": "https://raw.githubusercontent.com/ambs/Dicionario-Aberto/master/Resources/xmls.zip",
+      "license": "CC BY-SA 2.5 PT",
+      "attribution": "Dicionario Aberto, Alberto Simoes / Universidade do Minho"
+    },
+    {
+      "id": "dicionario-aberto-sql",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Dicionario Aberto database dump with revisions/modernised spellings",
+      "url": "https://raw.githubusercontent.com/ambs/Dicionario-Aberto/master/SQL/data-20151213.sql.xz",
+      "license": "CC BY-SA 2.5 PT",
+      "attribution": "Dicionario Aberto, Alberto Simoes / Universidade do Minho"
+    },
+    {
+      "id": "natura-hunspell-ao90",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Projecto Natura Hunspell pt_PT (AO90): PT-PT spelling authority + generated forms",
+      "url": "https://natura.di.uminho.pt/download/sources/Dictionaries/hunspell/hunspell-pt_PT-20251001.tar.gz",
+      "license": "GPL-2.0 / LGPL-2.1 / MPL-1.1 (tri-licensed, Projecto Natura)",
+      "attribution": "Projecto Natura, Universidade do Minho"
+    },
+    {
+      "id": "natura-hunspell-preao",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Projecto Natura Hunspell pt_PT pre-AO90: diff against AO90 gives old-spelling aliases (accao -> acao)",
+      "url": "https://natura.di.uminho.pt/download/sources/Dictionaries/hunspell/hunspell-pt_PT-preao-20251001.tar.gz",
+      "license": "GPL-2.0 / LGPL-2.1 / MPL-1.1 (tri-licensed, Projecto Natura)",
+      "attribution": "Projecto Natura, Universidade do Minho"
+    },
+    {
+      "id": "natura-jspell-big",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Projecto Natura jspell.pt: morphological lexicon with lemma + POS/gender/number/tense features",
+      "url": "https://natura.di.uminho.pt/download/sources/Dictionaries/jspell/jspell.pt.big-20251001.tar.gz",
+      "license": "GPL (Projecto Natura)",
+      "attribution": "Projecto Natura, Universidade do Minho"
+    },
+    {
+      "id": "natura-wordlist-big",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Projecto Natura expanded PT-PT word list (AO90)",
+      "url": "https://natura.di.uminho.pt/download/sources/Dictionaries/wordlists/wordlist-big-20251001.txt.xz",
+      "license": "GPL / LGPL / MPL (Projecto Natura)",
+      "attribution": "Projecto Natura, Universidade do Minho"
+    },
+    {
+      "id": "natura-wordlist-preao",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Projecto Natura expanded PT-PT word list (pre-AO90)",
+      "url": "https://natura.di.uminho.pt/download/sources/Dictionaries/wordlists/wordlist-preao-20251001.txt.xz",
+      "license": "GPL / LGPL / MPL (Projecto Natura)",
+      "attribution": "Projecto Natura, Universidade do Minho"
+    },
+    {
+      "id": "libreoffice-thesaurus-pt-pt",
+      "tier": "core",
+      "use": "ship",
+      "desc": "LibreOffice pt_PT MyThes thesaurus: synonyms grouped by sense",
+      "url": "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/pt_PT/th_pt_PT.dat",
+      "extra": ["https://raw.githubusercontent.com/LibreOffice/dictionaries/master/pt_PT/README_th_pt_PT.txt",
+                "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/pt_PT/LICENSES.txt",
+                "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/pt_PT/hyph_pt_PT.dic"],
+      "license": "See README_th_pt_PT.txt (verify before shipping)",
+      "attribution": "LibreOffice / Projecto Natura thesaurus contributors"
+    },
+    {
+      "id": "tatoeba-por",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Tatoeba Portuguese sentences (detailed: author, dates)",
+      "url": "https://downloads.tatoeba.org/exports/per_language/por/por_sentences_detailed.tsv.bz2",
+      "license": "CC BY 2.0 FR",
+      "attribution": "Tatoeba contributors"
+    },
+    {
+      "id": "tatoeba-eng",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Tatoeba English sentences",
+      "url": "https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2",
+      "license": "CC BY 2.0 FR",
+      "attribution": "Tatoeba contributors"
+    },
+    {
+      "id": "tatoeba-links",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Tatoeba translation links (all languages)",
+      "url": "https://downloads.tatoeba.org/exports/links.tar.bz2",
+      "license": "CC BY 2.0 FR",
+      "attribution": "Tatoeba contributors"
+    },
+    {
+      "id": "tatoeba-audio",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Tatoeba sentences with audio (ids, speakers, licences)",
+      "url": "https://downloads.tatoeba.org/exports/sentences_with_audio.tar.bz2",
+      "license": "Per-recording (listed in file)",
+      "attribution": "Tatoeba contributors"
+    },
+    {
+      "id": "opus-europarl",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Europarl v8 EN-PT parallel corpus (European Portuguese, sentence-aligned)",
+      "url": "https://object.pouta.csc.fi/OPUS-Europarl/v8/moses/en-pt.txt.zip",
+      "license": "European Parliament reuse policy (attribution); OPUS (Tiedemann 2012)",
+      "attribution": "European Parliament; OPUS"
+    },
+    {
+      "id": "opus-dgt",
+      "tier": "core",
+      "use": "ship",
+      "desc": "DGT translation memory EN-PT (EU legislation, European Portuguese)",
+      "url": "https://object.pouta.csc.fi/OPUS-DGT/v2019/moses/en-pt.txt.zip",
+      "license": "EU Commission reuse decision 2011/833/EU (attribution); OPUS",
+      "attribution": "European Commission DGT; OPUS"
+    },
+    {
+      "id": "opus-opensubtitles",
+      "tier": "core",
+      "use": "reference",
+      "desc": "OpenSubtitles v2024 EN-PT ('pt' = European Portuguese; pt_br is separate). Colloquial frequency + collocation stats only.",
+      "url": "https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2024/moses/en-pt.txt.zip",
+      "license": "Subtitles copyright of their authors; research use via OPUS. DO NOT ship sentences.",
+      "attribution": "opensubtitles.org; OPUS (Lison & Tiedemann 2016)"
+    },
+    {
+      "id": "opus-opensubtitles-ptbr-mono",
+      "tier": "all",
+      "use": "reference",
+      "desc": "OpenSubtitles v2018 EN-PT_BR: Brazilian contrast corpus for PT-PT vs PT-BR scoring",
+      "url": "https://object.pouta.csc.fi/OPUS-OpenSubtitles/v2018/moses/en-pt_br.txt.zip",
+      "license": "Research use via OPUS. DO NOT ship sentences.",
+      "attribution": "opensubtitles.org; OPUS"
+    },
+    {
+      "id": "opus-ted2020",
+      "tier": "core",
+      "use": "reference",
+      "desc": "TED2020 EN-PT (European Portuguese transcripts/translations)",
+      "url": "https://object.pouta.csc.fi/OPUS-TED2020/v1/moses/en-pt.txt.zip",
+      "license": "CC BY-NC-ND 4.0 - reference only",
+      "attribution": "TED; OPUS (Reimers & Gurevych 2020)"
+    },
+    {
+      "id": "opus-jrc-acquis",
+      "tier": "all",
+      "use": "ship",
+      "desc": "JRC-Acquis EN-PT (EU law, European Portuguese)",
+      "url": "https://object.pouta.csc.fi/OPUS-JRC-Acquis/v3.0/moses/en-pt.txt.zip",
+      "license": "EU reuse with attribution; OPUS",
+      "attribution": "European Commission JRC; OPUS"
+    },
+    {
+      "id": "opus-emea",
+      "tier": "all",
+      "use": "ship",
+      "desc": "EMEA EN-PT (European Medicines Agency documents): medical vocabulary in PT-PT",
+      "url": "https://object.pouta.csc.fi/OPUS-EMEA/v3/moses/en-pt.txt.zip",
+      "license": "EMA reuse with attribution; OPUS",
+      "attribution": "European Medicines Agency; OPUS"
+    },
+    {
+      "id": "wikidata-lexemes",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Wikidata Lexemes dump: Portuguese lexemes, forms, senses, English glosses, variety qualifiers",
+      "url": "https://dumps.wikimedia.org/wikidatawiki/entities/latest-lexemes.json.bz2",
+      "license": "CC0",
+      "attribution": "Wikidata contributors"
+    },
+    {
+      "id": "ptwiki-langlinks",
+      "tier": "all",
+      "use": "ship",
+      "desc": "Portuguese Wikipedia interlanguage links (pt title <-> en title) for proper nouns/terms",
+      "url": "https://dumps.wikimedia.org/ptwiki/latest/ptwiki-latest-langlinks.sql.gz",
+      "license": "CC BY-SA 4.0 (titles)",
+      "attribution": "Wikipedia contributors"
+    },
+    {
+      "id": "freq-opensubtitles-pt",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Word frequency list from OpenSubtitles 2018 'pt' (European Portuguese), hermitdave/FrequencyWords",
+      "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/pt/pt_full.txt",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Hermit Dave, FrequencyWords"
+    },
+    {
+      "id": "freq-opensubtitles-ptbr",
+      "tier": "core",
+      "use": "ship",
+      "desc": "Word frequency list from OpenSubtitles 2018 pt_br - contrast list for PT-PT vs PT-BR scoring",
+      "url": "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/pt_br/pt_br_full.txt",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Hermit Dave, FrequencyWords"
+    },
+    {
+      "id": "freq-hf-eu-pt-web",
+      "tier": "core",
+      "use": "ship",
+      "desc": "200k common European Portuguese web words",
+      "url": "https://huggingface.co/datasets/diplomaticvegetation/portuguese/resolve/main/words-top.txt",
+      "license": "CC0-1.0",
+      "attribution": "diplomaticvegetation/portuguese (Hugging Face)"
+    },
+    {
+      "id": "unimorph-por",
+      "tier": "core",
+      "use": "ship",
+      "desc": "UniMorph Portuguese inflection tables (lemma, form, features) + derivations",
+      "url": "https://github.com/unimorph/por/archive/refs/heads/master.tar.gz",
+      "license": "CC BY-SA 3.0",
+      "attribution": "UniMorph project"
+    },
+    {
+      "id": "ud-portuguese-bosque",
+      "tier": "core",
+      "use": "ship",
+      "desc": "UD Portuguese-Bosque treebank (lemmas/POS; CETEMPublico portion is European Portuguese)",
+      "url": "https://github.com/UniversalDependencies/UD_Portuguese-Bosque/archive/refs/heads/master.tar.gz",
+      "license": "CC BY-SA 4.0",
+      "attribution": "Universal Dependencies; Linguateca Floresta Sinta(c)tica"
+    },
+    {
+      "id": "openwordnet-pt",
+      "tier": "core",
+      "use": "ship",
+      "desc": "OpenWordnet-PT: synsets aligned to Princeton WordNet (gives EN<->PT sense links, synonyms). Brazilian-leaning; filter.",
+      "url": "https://github.com/own-pt/openWordnet-PT/archive/refs/heads/master.tar.gz",
+      "license": "CC BY 4.0",
+      "attribution": "OpenWordnet-PT (de Paiva, Rademaker et al.)"
+    },
+    {
+      "id": "verbecc",
+      "tier": "core",
+      "use": "reference",
+      "desc": "verbecc conjugation templates (pt) - reference for a conjugator covering verbs missing from Wiktionary",
+      "url": "https://github.com/bretttolbert/verbecc/archive/refs/heads/main.tar.gz",
+      "license": "LGPL-3.0 (verify)",
+      "attribution": "Brett Tolbert, verbecc"
+    },
+    {
+      "id": "cldr-pt-pt",
+      "tier": "all",
+      "use": "ship",
+      "desc": "Unicode CLDR JSON (full): pt-PT locale names, months, days, countries, units",
+      "url": "https://github.com/unicode-org/cldr-json/archive/refs/heads/main.tar.gz",
+      "license": "Unicode License v3",
+      "attribution": "Unicode CLDR"
+    },
+    {
+      "id": "freedict-por-eng",
+      "tier": "core",
+      "use": "ship",
+      "desc": "FreeDict Portuguese-English TEI (small, old)",
+      "url": "https://download.freedict.org/dictionaries/por-eng/0.1.1/freedict-por-eng-0.1.1.src.tar.bz2",
+      "license": "GPL-2.0-or-later",
+      "attribution": "FreeDict"
+    },
+    {
+      "id": "freedict-eng-por",
+      "tier": "core",
+      "use": "ship",
+      "desc": "FreeDict English-Portuguese TEI",
+      "url": "https://download.freedict.org/dictionaries/eng-por/0.3/freedict-eng-por-0.3.src.tar.xz",
+      "license": "GPL-2.0-or-later",
+      "attribution": "FreeDict"
+    },
+    {
+      "id": "muse-en-pt",
+      "tier": "core",
+      "use": "reference",
+      "desc": "MUSE EN-PT ground-truth bilingual lexicon - QA/coverage check only",
+      "url": "https://dl.fbaipublicfiles.com/arrival/dictionaries/en-pt.txt",
+      "license": "CC BY-NC 4.0 - reference only, never ship",
+      "attribution": "Facebook Research MUSE"
+    },
+    {
+      "id": "muse-pt-en",
+      "tier": "core",
+      "use": "reference",
+      "desc": "MUSE PT-EN ground-truth bilingual lexicon - QA/coverage check only",
+      "url": "https://dl.fbaipublicfiles.com/arrival/dictionaries/pt-en.txt",
+      "license": "CC BY-NC 4.0 - reference only, never ship",
+      "attribution": "Facebook Research MUSE"
+    }
+  ],
+  "manual": [
+    {
+      "id": "iate",
+      "desc": "IATE EU terminology (EN-PT, millions of terms, PT-PT). Export requires a free EU Login account at iate.europa.eu/download-iate; drop the TBX/CSV into data/raw/iate/.",
+      "license": "EU reuse with attribution"
+    },
+    {
+      "id": "lingua-libre",
+      "desc": "Lingua Libre word recordings by Portugal speakers (CC BY-SA 4.0) via Wikimedia Commons - fetch via SPARQL later.",
+      "license": "CC BY-SA 4.0 (per file)"
+    },
+    {
+      "id": "cetempublico",
+      "desc": "CETEMPublico (Linguateca) PT-PT newspaper corpus; research use, no direct commercial exploitation. Registration needed. Frequency stats only.",
+      "license": "Linguateca terms"
+    }
+  ]
+}
