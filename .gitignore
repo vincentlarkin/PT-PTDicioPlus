@@ -45,3 +45,6 @@ app/src/main/assets/dictionary/*.sqlite
 !data/
 !data/sources/
 !data/sources/source-registry.json
+
+# Python
+__pycache__/

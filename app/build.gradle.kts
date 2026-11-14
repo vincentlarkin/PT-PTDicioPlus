@@ -11,10 +11,19 @@ android {
         applicationId = "com.euptdicio"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            signingConfig = signingConfigs.getByName("debug") // TODO: real release key before store upload
+        }
     }
 
     buildFeatures {
@@ -22,16 +31,15 @@ android {
     }
 }
 
-tasks.register<Copy>("copyDictionaryDatabase") {
-    val builtDictionary = rootProject.layout.projectDirectory.file("data/build/euptdicio-kaikki.sqlite")
-    val dictionaryAssetDir = layout.projectDirectory.dir("src/main/assets/dictionary")
-    from(builtDictionary)
-    into(dictionaryAssetDir)
-    rename { "euptdicio.sqlite" }
+val bundleDictionary = tasks.register<BundleDictionary>("bundleDictionary") {
+    database.set(rootProject.layout.projectDirectory.file("data/build/dicio.sqlite"))
+    outputDir.set(layout.buildDirectory.dir("generated/dictionaryAssets"))
 }
 
-tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn("copyDictionaryDatabase")
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleDictionary, BundleDictionary::outputDir)
+    }
 }
 
 kotlin {
@@ -39,7 +47,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":dictionary-core"))
+    implementation(project(":dictionary-android"))
 
     implementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(platform(libs.androidx.compose.bom))

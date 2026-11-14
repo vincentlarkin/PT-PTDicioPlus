@@ -19,10 +19,16 @@ android {
         compose = true
     }
 
-    sourceSets {
-        getByName("main") {
-            assets.srcDirs("../app/src/main/assets")
-        }
+}
+
+val bundleDictionary = tasks.register<BundleDictionary>("bundleDictionary") {
+    database.set(rootProject.layout.projectDirectory.file("data/build/dicio.sqlite"))
+    outputDir.set(layout.buildDirectory.dir("generated/dictionaryAssets"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(bundleDictionary, BundleDictionary::outputDir)
     }
 }
 
@@ -31,7 +37,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":dictionary-core"))
+    implementation(project(":dictionary-android"))
 
     implementation(platform(libs.androidx.compose.bom))
 

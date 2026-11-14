@@ -3,13 +3,11 @@ package com.euptdicio.wear
 import android.app.RemoteInput
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -17,15 +15,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.items
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -37,262 +37,117 @@ import androidx.wear.compose.material.Scaffold
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.TimeText
 import androidx.wear.input.RemoteInputIntentHelper
-import com.euptdicio.core.LookupDirection
-import com.euptdicio.core.LookupResult
+import com.euptdicio.core.Dictionary
+import com.euptdicio.core.EntryDetail
+import com.euptdicio.core.SearchHit
+import com.euptdicio.core.Variety
+import com.euptdicio.data.DictionaryDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private const val INPUT_KEY = "query"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent {
-            WearDictionaryApp(
-                onClose = { finish() },
-            )
-        }
+        setContent { MaterialTheme { WearApp() } }
     }
 }
 
 @Composable
-private fun WearDictionaryApp(onClose: () -> Unit) {
+private fun WearApp() {
     val context = LocalContext.current
-    val repository = remember { WearDictionaryRepository(context.applicationContext) }
-    var direction by rememberSaveable { mutableStateOf<LookupDirection?>(null) }
-    var query by rememberSaveable { mutableStateOf("") }
-    var submittedQuery by rememberSaveable { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<LookupResult>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var dict by remember { mutableStateOf<Dictionary?>(null) }
+    var status by remember { mutableStateOf("A preparar…") }
+    var query by remember { mutableStateOf("") }
+    var hits by remember { mutableStateOf<List<SearchHit>>(emptyList()) }
+    var entry by remember { mutableStateOf<EntryDetail?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching { withContext(Dispatchers.IO) { DictionaryDatabase.open(context) } }
+            .onSuccess { dict = it; status = "" }
+            .onFailure { status = it.message ?: "Error" }
+    }
+
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val text = result.data?.let { RemoteInput.getResultsFromIntent(it) }?.getCharSequence(INPUT_KEY)?.toString()?.trim()
+        val d = dict
+        if (!text.isNullOrEmpty() && d != null) {
+            query = text
+            entry = null
+            scope.launch {
+                val r = withContext(Dispatchers.IO) { d.search(text, 12) }
+                hits = if (r.englishFirst) r.english + r.portuguese else r.portuguese + r.english
+                hits = hits.distinctBy { it.entry.id }
+            }
+        }
+    }
+
+    BackHandler(enabled = entry != null) { entry = null }
     val listState = rememberScalingLazyListState()
-    val inputLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val input = RemoteInput.getResultsFromIntent(result.data)
-            ?.getCharSequence(INPUT_KEY)
-            ?.toString()
-            ?.trim()
-            .orEmpty()
-        if (input.isNotBlank()) {
-            query = input
-            submittedQuery = input
-        }
-    }
-
-    LaunchedEffect(submittedQuery, direction) {
-        val selectedDirection = direction
-        if (submittedQuery.isBlank() || selectedDirection == null) {
-            results = emptyList()
-            error = null
-            return@LaunchedEffect
-        }
-
-        isLoading = true
-        error = null
-        runCatching {
-            withContext(Dispatchers.IO) {
-                repository.lookup(
-                    query = submittedQuery,
-                    direction = selectedDirection,
-                    limit = 8,
-                )
-            }
-        }.onSuccess { lookupResults ->
-            results = lookupResults
-        }.onFailure { throwable ->
-            results = emptyList()
-            error = throwable.message ?: throwable::class.java.simpleName
-        }
-        isLoading = false
-    }
-
-    MaterialTheme {
-        Scaffold(
-            timeText = { TimeText() },
-            positionIndicator = { PositionIndicator(scalingLazyListState = listState) },
-        ) {
-            ScalingLazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                state = listState,
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
+    Scaffold(timeText = { TimeText() }, positionIndicator = { PositionIndicator(listState) }) {
+        ScalingLazyColumn(state = listState, modifier = Modifier.fillMaxWidth()) {
+            val e = entry
+            if (e != null) {
+                item { EntryHeader(e) }
+                items(e.senses.take(6)) { s ->
+                    Text(
+                        (if (s.labels.isNotEmpty()) "(${s.labels.joinToString(", ")}) " else "") + s.gloss,
+                        style = MaterialTheme.typography.body2,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 3.dp),
+                    )
+                }
+            } else {
                 item {
-                    Header(direction = direction)
+                    Text("EU-PTDicio+", fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 18.sp,
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 }
-
-                if (direction == null) {
-                    item {
-                        DirectionChip(
-                            label = "English -> Portuguese",
-                            onClick = {
-                                direction = LookupDirection.EnglishToPortuguese
-                                query = ""
-                                submittedQuery = ""
-                            },
-                        )
-                    }
-                    item {
-                        DirectionChip(
-                            label = "Portuguese -> English",
-                            onClick = {
-                                direction = LookupDirection.PortugueseToEnglish
-                                query = ""
-                                submittedQuery = ""
-                            },
-                        )
-                    }
-                } else {
-                    item {
-                        Chip(
-                            modifier = Modifier.fillMaxWidth(0.86f),
-                            label = {
-                                Text(
-                                    text = query.ifBlank { "Type word" },
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                            secondaryLabel = {
-                                Text(if (query.isBlank()) "Open keyboard" else "Tap to edit")
-                            },
-                            onClick = {
-                                inputLauncher.launch(createTextInputIntent(direction?.displayLabel.orEmpty()))
-                            },
-                            colors = ChipDefaults.primaryChipColors(),
-                        )
-                    }
-                    when {
-                        isLoading -> item {
-                            StatusText("Loading dictionary...")
-                        }
-                        error != null -> item {
-                            StatusText("Lookup failed: $error")
-                        }
-                        submittedQuery.isNotBlank() && results.isEmpty() -> item {
-                            StatusText("No results")
-                        }
-                    }
-                    items(results) { result ->
-                        ResultChip(result = result)
-                    }
-                    item {
-                        Chip(
-                            modifier = Modifier.fillMaxWidth(0.72f),
-                            label = { Text("Change") },
-                            onClick = {
-                                direction = null
-                                query = ""
-                                submittedQuery = ""
-                                results = emptyList()
-                                error = null
-                            },
-                            colors = ChipDefaults.secondaryChipColors(),
-                        )
-                    }
-                    item {
-                        Chip(
-                            modifier = Modifier.fillMaxWidth(0.72f),
-                            label = { Text("Close") },
-                            onClick = onClose,
-                            colors = ChipDefaults.secondaryChipColors(),
-                        )
-                    }
+                item {
+                    Chip(
+                        onClick = {
+                            launcher.launch(RemoteInputIntentHelper.createActionRemoteInputIntent().also { intent ->
+                                RemoteInputIntentHelper.putTitleExtra(intent, "Português / English")
+                                RemoteInputIntentHelper.putRemoteInputsExtra(intent, listOf(RemoteInput.Builder(INPUT_KEY).setLabel("Palavra").build()))
+                            })
+                        },
+                        enabled = dict != null,
+                        label = { Text(if (query.isEmpty()) "Pesquisar" else query, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        secondaryLabel = { if (status.isNotEmpty()) Text(status) else Text("voz ou teclado") },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
+                items(hits, key = { it.entry.id }) { h ->
+                    Chip(
+                        onClick = {
+                            val d = dict ?: return@Chip
+                            scope.launch { entry = withContext(Dispatchers.IO) { d.entry(h.entry.id) } }
+                        },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        label = { Text(h.entry.word + regionMark(h.entry.variety), maxLines = 1) },
+                        secondaryLabel = { Text(h.entry.firstGloss, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (query.isNotEmpty() && hits.isEmpty()) item { Text("Sem resultados", textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) }
             }
         }
     }
 }
 
-private fun createTextInputIntent(title: String) =
-    RemoteInputIntentHelper.createActionRemoteInputIntent().also { intent ->
-        RemoteInputIntentHelper.putTitleExtra(intent, title)
-        RemoteInputIntentHelper.putConfirmLabelExtra(intent, "Search")
-        RemoteInputIntentHelper.putCancelLabelExtra(intent, "Cancel")
-        RemoteInputIntentHelper.putRemoteInputsExtra(
-            intent,
-            listOf(
-                RemoteInput.Builder(INPUT_KEY)
-                    .setLabel("Word")
-                    .build(),
-            ),
-        )
-    }
+private fun regionMark(variety: Int) = when {
+    variety and Variety.PORTUGAL != 0 -> "  · PT"
+    variety and Variety.BRAZIL != 0 -> "  · BR"
+    else -> ""
+}
 
 @Composable
-private fun Header(direction: LookupDirection?) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 22.dp, bottom = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "EU-PTDicio+",
-                style = MaterialTheme.typography.title3,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-            )
-            Text(
-                text = direction?.displayLabel ?: "Choose direction",
-                style = MaterialTheme.typography.caption1,
-                textAlign = TextAlign.Center,
-            )
-        }
+private fun EntryHeader(e: EntryDetail) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+        Text(e.summary.word, fontFamily = FontFamily.Serif, fontWeight = FontWeight.Bold, fontSize = 22.sp,
+            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+        Text(listOfNotNull(e.summary.ipa, e.summary.pos).joinToString("  "), color = Color(0xFFA8C3F5),
+            style = MaterialTheme.typography.caption2, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
     }
 }
-
-@Composable
-private fun DirectionChip(
-    label: String,
-    onClick: () -> Unit,
-) {
-    Chip(
-        modifier = Modifier.fillMaxWidth(0.86f),
-        label = { Text(label) },
-        onClick = onClick,
-        colors = ChipDefaults.primaryChipColors(),
-    )
-}
-
-@Composable
-private fun StatusText(message: String) {
-    Text(
-        modifier = Modifier
-            .fillMaxWidth(0.82f)
-            .padding(vertical = 8.dp),
-        text = message,
-        textAlign = TextAlign.Center,
-        style = MaterialTheme.typography.caption1,
-    )
-}
-
-@Composable
-private fun ResultChip(result: LookupResult) {
-    val meaning = result.entry.meanings.joinToString(", ")
-    Chip(
-        modifier = Modifier.fillMaxWidth(0.86f),
-        label = {
-            Text(
-                text = result.entry.lemma,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        secondaryLabel = {
-            Text(
-                text = meaning,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        onClick = {},
-        colors = ChipDefaults.primaryChipColors(),
-    )
-}
-
-private val LookupDirection.displayLabel: String
-    get() = when (this) {
-        LookupDirection.EnglishToPortuguese -> "English -> Portuguese"
-        LookupDirection.PortugueseToEnglish -> "Portuguese -> English"
-    }
-
-private const val INPUT_KEY = "lookup_text"
