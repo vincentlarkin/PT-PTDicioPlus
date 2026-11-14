@@ -27,26 +27,37 @@ Learner UX rules:
 - Verb forms should be grouped by learner task: present, past, future/conditional, subjunctive, commands, and non-finite forms.
 - Form labels should translate grammar tags into English-speaker cues such as `I`, `we`, `he/she`, `preterite`, and `subjunctive`.
 
-## Native App Direction
+## Architecture
 
-Use Kotlin with Jetpack Compose for Android. Google now describes Compose as the recommended native Android UI toolkit, and it gives us a good path to share presentation patterns with Compose for Wear OS later.
+```
+data/sources/datasets.json   every external dataset: URL, licence, ship vs reference-only
+tools/fetch_datasets.py      downloads them into data/raw/<id>/ (git-ignored, ~9 GB)
+pipeline/                    Python (stdlib only) build: raw data -> data/build/dicio.sqlite
+dictionary-core/             pure Kotlin: search, clitics, grammar labels, conjugation tables
+dictionary-android/          installs the bundled SQLite on first run; Android SqlDb adapter
+app/                         phone app (Jetpack Compose), two-pane on foldables/tablets
+wear/                        Wear OS app (voice/keyboard lookup)
+buildSrc/                    BundleDictionary task: puts dicio.sqlite into app assets
+```
 
-Current modules:
+Python only runs at build time on a PC. On the phone, every lookup is an indexed SQLite query
+from Kotlin. Search takes about 1.5 to 4 ms in the emulator and on the desktop JVM.
 
-- `app`: Android phone app.
-- `dictionary-core`: Kotlin library for lookup, normalization, ranking, and dictionary result models.
+The search code in `dictionary-core` talks to a two-method `SqlDb` interface, so the same code
+runs on Android and in JVM unit tests against the real built database.
 
-Planned modules:
+### Database (schema v2)
 
-- `dictionary-data`: generated SQLite or FTS asset from curated source data.
-- `wear`: Wear OS companion module for quick lookup, recent words, and saved favorites.
-
-Storage/search direction:
-
-- Ship a prebuilt SQLite database with Android-compatible FTS4-backed prefix/full-text search.
-- Keep a separate normalized-form table mapping inflected forms to lemmas.
-- Store source IDs per sense so attribution and debugging stay possible.
-- Load compact result rows first, then lazy-load richer sense details.
+| Table | What |
+|---|---|
+| `entry` | headword (European spelling), POS, gender, PT-PT IPA, Commons audio file, syllables, etymology, PT/BR variety bits, frequency rank, search score |
+| `sense` | English meaning, usage/region labels, topic |
+| `example` | Portuguese example + English translation |
+| `form` | full paradigm (conjugation / plural / feminine) with interned tag sets |
+| `lookup` | every string that resolves to an entry: headword, spelling variant (pre-AO90, Brazilian), inflected form, old spelling of a form |
+| `en_index` | English term -> entry, weighted by gloss position and Wiktionary translation tables, with region penalties |
+| `rel` | synonyms, antonyms, derived terms, related words |
+| `en_form` | English inflections (went -> go) for English-side lookup |
 
 ## European Portuguese Notes
 
@@ -64,37 +75,17 @@ Must support:
 - AO90 spelling as the default, while retaining useful pre-AO spellings as aliases where the source data allows.
 - PT-PT vocabulary preference and region labels when an entry is Brazilian, African Portuguese, archaic, slang, or technical.
 
-## Dictionary Data Plan
+## Data
 
-Candidate sources, in priority order:
+See [docs/SOURCES.md](docs/SOURCES.md) for every source, its licence, and what it contributes. Current build:
 
-1. Wiktextract / Kaikki JSONL from Wiktionary
-   - Use Portuguese entries with English glosses, part of speech, pronunciations, examples where useful, translations, and inflection metadata.
-   - Good machine-readable structure and updated regularly.
-   - Requires respecting Wiktionary content licensing and attribution.
+- 71k entries and 104k English meanings. There are 750k lookup keys: headwords, all inflected forms, and pre-AO90 and Brazilian spellings.
+- 139k English→Portuguese index rows, 83k of them from Wiktionary translation tables.
+- European IPA on about 75k entries, plus Lingua Libre / Commons recordings where they exist.
+- 72 MB SQLite; the release APK is 29 MB.
 
-2. Dicionário Aberto
-   - Open Portuguese dictionary, useful as a PT-PT lexical authority and monolingual cross-check.
-   - Licensed under Creative Commons Attribution-ShareAlike 2.5 Portugal.
-   - Use for lemma validation, Portuguese definitions, spelling variants, and quality checks, not as the only English translation source.
-
-3. FreeDict Portuguese-English
-   - Useful bilingual baseline, but the current Portuguese-English package appears old and smaller than Wiktionary-derived data.
-   - Check the TEI header license before bundling any data.
-   - Treat as supplemental coverage and comparison data.
-
-4. Hunspell / LibreOffice `pt_PT`
-   - Useful for spelling and generated-form coverage.
-   - Not enough for dictionary senses by itself.
-   - License compatibility must be verified before bundling.
-
-Data pipeline:
-
-- Download source snapshots into `data/raw/`, which should not be committed.
-- Convert sources into normalized intermediate JSON under `data/build/`, also not committed.
-- Generate a deterministic app asset under `dictionary-data/src/main/assets/`.
-- Emit a source manifest with versions, source URLs, licenses, build date, row counts, and checksums.
-- Add automated spot checks for high-risk words and forms.
+Regression checks: `pipeline/checks.py` (SQL-level) and `DictionaryIntegrationTest` (Kotlin, real DB).
+Example cases: bus→autocarro, train→comboio, breakfast→pequeno-almoço, acção→ação, dá-me→dar, falávamos→falar.
 
 ## Lookup Behavior
 
@@ -126,41 +117,18 @@ Result display:
 
 ## Development
 
-Requirements:
+Requirements: JDK 17+ (21 tested), Android SDK API 36, Python 3.10+, curl.
 
-- JDK 17.
-- Android SDK with API 36.
-- `ANDROID_HOME` or `local.properties` pointing to the SDK.
-
-Android Studio:
-
-- Open this folder directly in Android Studio.
-- Let Android Studio sync with the checked-in Gradle wrapper.
-- Keep `local.properties` local; it points Gradle at the installed Android SDK and is intentionally ignored by git.
-
-Useful commands:
-
-```powershell
-.\gradlew.bat :dictionary-core:test
-.\gradlew.bat :app:assembleDebug
+```sh
+python3 tools/fetch_datasets.py                 # once: download sources (~9 GB)
+python3 -I tools/build_dictionary.py            # ~40 s: build data/build/dicio.sqlite
+python3 -I -c 'import sys; sys.path.insert(0,"."); from pipeline import checks; checks.main()'
+./gradlew :dictionary-core:test                 # Kotlin unit + integration tests
+./gradlew :app:assembleRelease :wear:assembleRelease
 ```
 
-Data import:
-
-```powershell
-.\tools\fetch-open-sources.ps1
-.\gradlew.bat :dictionary-importer:run --args="--input C:\path\to\EU-PTDicio+\data\raw\kaikki.org-dictionary-Portuguese.jsonl --frequency C:\path\to\EU-PTDicio+\data\raw\hf-eu-pt-words-top.txt --freedict-por-eng C:\path\to\EU-PTDicio+\data\raw\freedict-por-eng.tei --freedict-eng-por C:\path\to\EU-PTDicio+\data\raw\freedict-eng-por.tei --output C:\path\to\EU-PTDicio+\data\build\euptdicio-kaikki.sqlite"
-```
-
-See `docs/SOURCES.md` and `data/sources/source-registry.json` for source policy and authorized input slots.
-
-Current local database:
-
-- 467,971 entries: 427,242 Kaikki, 10,661 FreeDict PT->EN, and 30,068 inverted FreeDict EN->PT.
-- 608,499 senses and 503,273 forms.
-- 10,091 example sentences, 7,567 with English translations.
-- 142,443 entries with European Portuguese frequency/commonality signals.
-- Indexed lowercase glosses and column-scoped FTS keep common EN/PT lookups in the low single-digit millisecond range on the local build machine.
+`local.properties` (git-ignored) needs `sdk.dir=/path/to/Android/Sdk`. Release builds are currently
+signed with the debug key; switch to a real upload key before store submission.
 
 ## Android UX Plan
 
@@ -182,46 +150,26 @@ Wear OS / Galaxy Watch backlog:
 - Recent and favorite words synced from phone.
 - Use Wear OS Data Layer only for phone-watch sync where appropriate; keep watch data locally cached.
 
-## Milestones
+## Status
 
-### 0. Planning
+Done (v0.2):
+- Data pipeline rebuilt in Python with 36 catalogued sources and a manifest with checksums.
+- European spelling as the headword, with Brazilian and pre-AO90 spellings as aliases.
+- Clitic lookup: enclisis, mesoclisis, and -lo/-no forms.
+- Unified PT/EN search with automatic direction.
+- Entry pages with conjugation tables (European forms first), synonyms and expressions.
+- Favourites and history; "Look up" from selected text in any app.
+- Two-pane layout on foldables and tablets.
+- Wear OS lookup app.
 
-- Confirm data source licenses and attribution requirements.
-- Choose final database schema.
-- Create a small manually curated test set of PT-PT words/forms.
-
-### 1. Android Skeleton
-
-- Create Kotlin/Gradle Android project.
-- Add Compose phone UI shell.
-- Add `dictionary-core` with fake in-memory data.
-- Add baseline tests for normalization and ranking.
-
-### 2. Data Prototype
-
-- Build importer for a small Wiktextract sample.
-- Generate SQLite/FTS asset.
-- Wire exact, prefix, and lemma lookup.
-- Add source manifest output.
-
-### 3. Morphology
-
-- Add inflected-form lookup tables.
-- Add clitic normalization for common EP forms.
-- Add regression tests for irregular verbs, noun/adjective forms, accents, contractions, and clitics.
-
-### 4. App Quality
-
-- Polish UI for speed and one-handed lookup.
-- Add favorites and recents.
-- Add attribution/source screen.
-- Profile database queries and startup.
-
-### 5. Wear OS
-
-- Add Wear OS module.
-- Implement recents/favorites sync.
-- Add quick lookup UI for Galaxy Watch.
+Next:
+- Tatoeba and Europarl/DGT example sentences, filtered for European Portuguese.
+- Dicionário Aberto Portuguese definitions.
+- Wikidata lexemes; the LibreOffice/Onto.PT thesaurus.
+- Fuzzy "did you mean" for typos.
+- Offline audio pack (optional download).
+- IATE technical terms (needs a manual EU Login export).
+- Release signing and the store listing.
 
 ## Reference Links
 
